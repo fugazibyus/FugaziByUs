@@ -1,0 +1,36 @@
+# Sandbox for the coding agents (triage, developer, debugger, reviewer, release).
+# Deny-by-default network: GitHub + package registries only.
+# Edit, then `make ai-plan` (dry run) and `make ai-apply`.
+name: fugazibyus-sandbox
+description: Locked-down container with PHP 8.4, Composer, Node and the GitHub CLI for working on the FugaziByUs repo.
+config:
+    type: cloud
+    networking:
+        type: limited
+        allow_package_managers: true
+        allow_mcp_servers: false
+        allowed_hosts:
+            - github.com
+            - api.github.com
+            - codeload.github.com
+            - objects.githubusercontent.com
+            - '*.githubusercontent.com'
+            - packagist.org
+            - repo.packagist.org
+    packages:
+        apt:
+            - gh
+            - unzip
+            - sqlite3
+            - php-cli
+            - php-mbstring
+            - php-xml
+            - php-curl
+            - php-sqlite3
+            - php-mysql
+            - php-intl
+            - php-zip
+            - php-bcmath
+            - composer
+metadata:
+    project: fugazibyus

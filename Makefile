@@ -13,6 +13,7 @@ RUN  := $(DC) run --rm --no-deps app
 ## —— Setup ————————————————————————————————————————————————
 setup: ## First-time setup: build images, install deps, create DB, build assets
 	@test -f .env || cp .env.example .env
+	@mkdir -p $(HOME)/.config/anthropic
 	$(DC) build
 	$(DC) up -d db
 	$(RUN) composer install
@@ -86,9 +87,31 @@ e2e: ## Browser smoke tests (Playwright) against the running local site
 	npx playwright install chromium
 	npx playwright test
 
+## —— AI agents ——————————————————————————————————————————
+ai-agents: ## List the agents, models, budgets and Anthropic IDs
+	$(EXEC) php artisan ai:agents
+
+ai-sync: ## Regenerate local Claude Code subagents from /agents
+	$(EXEC) php artisan ai:sync-local
+
+ai-plan: ## Show what `ant apply` would change in Anthropic (no changes made)
+	ant apply --dry-run agents environments vaults
+
+ai-apply: ## Create/update the agents, environments and vault in Anthropic
+	ant apply agents environments vaults
+	$(MAKE) ai-sync
+
+ai-vault-github: ## Store the agents' GitHub token in the vault (prompts for it)
+	@scripts/ai-vault-github.sh
+
+ai-run: ## Start a cloud agent: make ai-run agent=developer issue=12 [pr=34 branch=… msg="…"]
+	$(EXEC) php artisan ai:start $(agent) \
+		$(if $(issue),--issue=$(issue)) $(if $(pr),--pr=$(pr)) $(if $(branch),--branch=$(branch)) \
+		$(if $(msg),--message="$(msg)") --trigger=local --actor=$(shell git config user.name | tr ' ' '-')
+
 ## —— Help —————————————————————————————————————————————————
 help:
 	@grep -hE '(^[a-zA-Z_-]+:.*?## .*$$)|(^## )' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; /^## /{printf "\n\033[33m%s\033[0m\n", substr($$0, 4); next} {printf "  \033[32m%-10s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: setup up down restart build ps logs shell db-shell artisan migrate fresh composer npm assets test lint check e2e help
+.PHONY: setup up down restart build ps logs shell db-shell artisan migrate fresh composer npm assets test lint check e2e ai-agents ai-sync ai-plan ai-apply ai-vault-github ai-run help

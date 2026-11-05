@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use Anthropic\Client;
+use App\Ai\AgentRegistry;
+use App\Ai\AnthropicManagedAgentsGateway;
+use App\Ai\Contracts\ManagedAgentsGateway;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +19,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(AgentRegistry::class, fn () => new AgentRegistry(
+            agentsPath: (string) config('ai.agents_path'),
+            lockFile: (string) config('ai.lock_file'),
+        ));
+
+        // The Anthropic client resolves credentials itself: ANTHROPIC_API_KEY, or the
+        // profile from `ant auth login` when no key is set.
+        $this->app->bind(ManagedAgentsGateway::class, fn () => new AnthropicManagedAgentsGateway(
+            new Client,
+        ));
     }
 
     /**
