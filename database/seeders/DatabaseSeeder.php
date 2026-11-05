@@ -17,9 +17,12 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
+        // Local demo login – see docs/SETUP-LOCAL.md. Never runs in production (seeders aren't run there).
         User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+            'first_name' => 'Demo',
+            'last_name' => 'User',
+            'email' => 'demo@fugazibyus.test',
+            'password' => 'Fugazi-Demo-2026!',
         ]);
     }
 }

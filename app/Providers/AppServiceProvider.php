@@ -37,14 +37,12 @@ class AppServiceProvider extends ServiceProvider
             app()->isProduction(),
         );
 
-        Password::defaults(fn (): ?Password => app()->isProduction()
-            ? Password::min(12)
-                ->mixedCase()
-                ->letters()
-                ->numbers()
-                ->symbols()
-                ->uncompromised()
-            : null,
-        );
+        // Same strength rules everywhere so local/staging behave like production.
+        // The breached-password check (a network call) only runs in production.
+        Password::defaults(function (): Password {
+            $rule = Password::min(12)->max(128)->letters()->mixedCase()->numbers()->symbols();
+
+            return app()->isProduction() ? $rule->uncompromised() : $rule;
+        });
     }
 }

@@ -10,43 +10,34 @@ use Illuminate\Validation\Rules\Unique;
 trait ProfileValidationRules
 {
     /**
-     * Get the validation rules used to validate user profiles.
+     * Rules for the optional first / last name fields on the account page.
      *
-     * @return array<string, array<int, Unique|ValidationRule|array<mixed>|string>>
+     * @return array<string, array<int, ValidationRule|array<mixed>|string>>
      */
-    protected function profileRules(?int $userId = null): array
+    protected function nameRules(): array
     {
         return [
-            'name' => $this->nameRules(),
-            'email' => $this->emailRules($userId),
+            'first_name' => ['nullable', 'string', 'max:100'],
+            'last_name' => ['nullable', 'string', 'max:100'],
         ];
     }
 
     /**
-     * Get the validation rules used to validate user names.
+     * Rules for a user's email address (registration and email change).
      *
      * @return array<int, Unique|ValidationRule|array<mixed>|string>
      */
-    protected function nameRules(): array
-    {
-        return ['required', 'string', 'max:255'];
-    }
-
-    /**
-     * Get the validation rules used to validate user emails.
-     *
-     * @return array<int, Unique|ValidationRule|array<mixed>|string>
-     */
-    protected function emailRules(?int $userId = null): array
+    protected function emailRules(?int $ignoreUserId = null): array
     {
         return [
             'required',
             'string',
-            'email',
+            'lowercase',
+            'email:rfc,strict',
             'max:255',
-            $userId === null
+            $ignoreUserId === null
                 ? Rule::unique(User::class)
-                : Rule::unique(User::class)->ignore($userId),
+                : Rule::unique(User::class)->ignore($ignoreUserId),
         ];
     }
 }

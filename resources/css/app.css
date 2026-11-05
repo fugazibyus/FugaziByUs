@@ -9,9 +9,8 @@
 
 @theme inline {
     --font-sans:
-        Instrument Sans, ui-sans-serif, system-ui, sans-serif,
-        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-        'Noto Color Emoji';
+        Inter, ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+        'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);
@@ -83,83 +82,93 @@
     body,
     html {
         --font-sans:
-            'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
-            'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-            'Noto Color Emoji';
+            'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+            'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
     }
 }
 
+/*
+  FugaziByUs design tokens.
+  One accent colour (violet) on a neutral slate base. Designers: change the brand here
+  (--brand-*) and every button, link, focus ring and chart follows.
+*/
 :root {
-    --background: hsl(0 0% 100%);
-    --foreground: hsl(0 0% 3.9%);
-    --card: hsl(0 0% 100%);
-    --card-foreground: hsl(0 0% 3.9%);
-    --popover: hsl(0 0% 100%);
-    --popover-foreground: hsl(0 0% 3.9%);
-    --primary: hsl(0 0% 9%);
-    --primary-foreground: hsl(0 0% 98%);
-    --secondary: hsl(0 0% 92.1%);
-    --secondary-foreground: hsl(0 0% 9%);
-    --muted: hsl(0 0% 96.1%);
-    --muted-foreground: hsl(0 0% 45.1%);
-    --accent: hsl(0 0% 96.1%);
-    --accent-foreground: hsl(0 0% 9%);
-    --destructive: hsl(0 84.2% 60.2%);
-    --destructive-foreground: hsl(0 0% 98%);
-    --border: hsl(0 0% 92.8%);
-    --input: hsl(0 0% 89.8%);
-    --ring: hsl(0 0% 3.9%);
-    --chart-1: hsl(12 76% 61%);
-    --chart-2: hsl(173 58% 39%);
-    --chart-3: hsl(197 37% 24%);
-    --chart-4: hsl(43 74% 66%);
-    --chart-5: hsl(27 87% 67%);
-    --radius: 0.5rem;
-    --sidebar-background: hsl(0 0% 98%);
-    --sidebar-foreground: hsl(240 5.3% 26.1%);
-    --sidebar-primary: hsl(0 0% 10%);
-    --sidebar-primary-foreground: hsl(0 0% 98%);
-    --sidebar-accent: hsl(0 0% 94%);
-    --sidebar-accent-foreground: hsl(0 0% 30%);
-    --sidebar-border: hsl(0 0% 91%);
-    --sidebar-ring: hsl(217.2 91.2% 59.8%);
-    --sidebar: hsl(0 0% 98%);
+    --brand-50: oklch(0.969 0.016 293.756);
+    --brand-100: oklch(0.943 0.029 294.588);
+    --brand-500: oklch(0.606 0.25 292.717);
+    --brand-600: oklch(0.541 0.281 293.009);
+    --brand-700: oklch(0.491 0.27 292.581);
+
+    --background: oklch(0.995 0.002 286);
+    --foreground: oklch(0.21 0.034 264.665);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.21 0.034 264.665);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.21 0.034 264.665);
+    --primary: var(--brand-600);
+    --primary-foreground: oklch(0.985 0.002 247.839);
+    --secondary: oklch(0.967 0.003 264.542);
+    --secondary-foreground: oklch(0.21 0.034 264.665);
+    --muted: oklch(0.967 0.003 264.542);
+    --muted-foreground: oklch(0.551 0.027 264.364);
+    --accent: var(--brand-50);
+    --accent-foreground: var(--brand-700);
+    --destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: oklch(0.985 0 0);
+    --border: oklch(0.928 0.006 264.531);
+    --input: oklch(0.928 0.006 264.531);
+    --ring: var(--brand-500);
+    --chart-1: var(--brand-600);
+    --chart-2: oklch(0.696 0.17 162.48);
+    --chart-3: oklch(0.769 0.188 70.08);
+    --chart-4: oklch(0.645 0.246 16.439);
+    --chart-5: oklch(0.623 0.214 259.815);
+    --radius: 0.75rem;
+    --sidebar-background: oklch(0.985 0.002 247.839);
+    --sidebar-foreground: oklch(0.21 0.034 264.665);
+    --sidebar-primary: var(--brand-600);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: var(--brand-50);
+    --sidebar-accent-foreground: var(--brand-700);
+    --sidebar-border: oklch(0.928 0.006 264.531);
+    --sidebar-ring: var(--brand-500);
+    --sidebar: oklch(0.985 0.002 247.839);
 }
 
 .dark {
-    --background: hsl(0 0% 3.9%);
-    --foreground: hsl(0 0% 98%);
-    --card: hsl(0 0% 3.9%);
-    --card-foreground: hsl(0 0% 98%);
-    --popover: hsl(0 0% 3.9%);
-    --popover-foreground: hsl(0 0% 98%);
-    --primary: hsl(0 0% 98%);
-    --primary-foreground: hsl(0 0% 9%);
-    --secondary: hsl(0 0% 14.9%);
-    --secondary-foreground: hsl(0 0% 98%);
-    --muted: hsl(0 0% 16.08%);
-    --muted-foreground: hsl(0 0% 63.9%);
-    --accent: hsl(0 0% 14.9%);
-    --accent-foreground: hsl(0 0% 98%);
-    --destructive: hsl(0 84% 60%);
-    --destructive-foreground: hsl(0 0% 98%);
-    --border: hsl(0 0% 14.9%);
-    --input: hsl(0 0% 14.9%);
-    --ring: hsl(0 0% 83.1%);
-    --chart-1: hsl(220 70% 50%);
-    --chart-2: hsl(160 60% 45%);
-    --chart-3: hsl(30 80% 55%);
-    --chart-4: hsl(280 65% 60%);
-    --chart-5: hsl(340 75% 55%);
-    --sidebar-background: hsl(0 0% 7%);
-    --sidebar-foreground: hsl(0 0% 95.9%);
-    --sidebar-primary: hsl(360, 100%, 100%);
-    --sidebar-primary-foreground: hsl(0 0% 100%);
-    --sidebar-accent: hsl(0 0% 15.9%);
-    --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
-    --sidebar-border: hsl(0 0% 15.9%);
-    --sidebar-ring: hsl(217.2 91.2% 59.8%);
-    --sidebar: hsl(240 5.9% 10%);
+    --background: oklch(0.145 0.014 285.8);
+    --foreground: oklch(0.967 0.003 264.542);
+    --card: oklch(0.19 0.016 285.8);
+    --card-foreground: oklch(0.967 0.003 264.542);
+    --popover: oklch(0.19 0.016 285.8);
+    --popover-foreground: oklch(0.967 0.003 264.542);
+    --primary: oklch(0.702 0.183 293.541);
+    --primary-foreground: oklch(0.145 0.014 285.8);
+    --secondary: oklch(0.25 0.018 285.8);
+    --secondary-foreground: oklch(0.967 0.003 264.542);
+    --muted: oklch(0.25 0.018 285.8);
+    --muted-foreground: oklch(0.707 0.022 261.325);
+    --accent: oklch(0.283 0.06 293);
+    --accent-foreground: oklch(0.894 0.057 293.283);
+    --destructive: oklch(0.637 0.237 25.331);
+    --destructive-foreground: oklch(0.985 0 0);
+    --border: oklch(0.28 0.016 285.8);
+    --input: oklch(0.3 0.016 285.8);
+    --ring: oklch(0.702 0.183 293.541);
+    --chart-1: oklch(0.702 0.183 293.541);
+    --chart-2: oklch(0.765 0.177 163.223);
+    --chart-3: oklch(0.828 0.189 84.429);
+    --chart-4: oklch(0.712 0.194 13.428);
+    --chart-5: oklch(0.707 0.165 254.624);
+    --sidebar-background: oklch(0.19 0.016 285.8);
+    --sidebar-foreground: oklch(0.967 0.003 264.542);
+    --sidebar-primary: oklch(0.702 0.183 293.541);
+    --sidebar-primary-foreground: oklch(0.145 0.014 285.8);
+    --sidebar-accent: oklch(0.283 0.06 293);
+    --sidebar-accent-foreground: oklch(0.894 0.057 293.283);
+    --sidebar-border: oklch(0.28 0.016 285.8);
+    --sidebar-ring: oklch(0.702 0.183 293.541);
+    --sidebar: oklch(0.19 0.016 285.8);
 }
 
 @layer base {
@@ -169,4 +178,34 @@
     body {
         @apply bg-background text-foreground;
     }
+}
+
+/* Soft brand glow used behind hero sections. */
+@utility bg-hero-glow {
+    background-image:
+        radial-gradient(
+            60% 50% at 50% 0%,
+            color-mix(in oklch, var(--primary) 18%, transparent),
+            transparent 70%
+        ),
+        radial-gradient(
+            40% 40% at 85% 20%,
+            color-mix(in oklch, var(--chart-5) 12%, transparent),
+            transparent 70%
+        );
+}
+
+/* Soft brand glow used behind hero sections. */
+@utility bg-hero-glow {
+    background-image:
+        radial-gradient(
+            60% 50% at 50% 0%,
+            color-mix(in oklch, var(--primary) 18%, transparent),
+            transparent 70%
+        ),
+        radial-gradient(
+            40% 40% at 85% 20%,
+            color-mix(in oklch, var(--chart-5) 12%, transparent),
+            transparent 70%
+        );
 }

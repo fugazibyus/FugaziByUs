@@ -36,12 +36,14 @@ make setup
 
 This builds the images, installs Composer and npm packages inside the containers, creates the database and starts everything. When it finishes:
 
-| What | URL / port |
-|---|---|
-| Website | http://localhost:8090 |
-| Mail catcher (all emails land here) | http://localhost:8026 |
-| Vite dev server (hot reload) | http://localhost:5173 (used automatically) |
+| What                                     | URL / port                                                       |
+| ---------------------------------------- | ---------------------------------------------------------------- |
+| Website                                  | http://localhost:8090                                            |
+| Mail catcher (all emails land here)      | http://localhost:8026                                            |
+| Vite dev server (hot reload)             | http://localhost:5173 (used automatically)                       |
 | MySQL from a GUI client (TablePlus etc.) | `127.0.0.1:33060`, user `fugazi`, password `secret`, db `fugazi` |
+
+**Demo login:** `make setup` (and `make fresh`) creates a local demo user, `demo@fugazibyus.test`. Its password is in `database/seeders/DatabaseSeeder.php`. This user exists only locally; seeders never run on staging or production.
 
 The ports avoid your other local project, which uses 8080 and 8025. To change any port, edit `APP_PORT`, `MAILPIT_UI_PORT`, `FORWARD_DB_PORT` or `VITE_PORT` in `.env`, then run `make up`.
 
@@ -62,15 +64,15 @@ make fresh         # reset the database
 
 ## 5. The containers
 
-| Container | What it does |
-|---|---|
-| `app` | PHP-FPM 8.4 running Laravel (your code is mounted live) |
-| `nginx` | Web server on port 8090 → forwards PHP requests to `app` |
-| `db` | MySQL 8.4 (data kept in the `dbdata` Docker volume) |
-| `vite` | Vite dev server for hot-reloading Vue/Tailwind changes |
-| `queue` | Runs background jobs (Slack messages, webhooks…) |
-| `scheduler` | Runs scheduled tasks (metrics sync…) |
-| `mailpit` | Catches outgoing email |
+| Container   | What it does                                             |
+| ----------- | -------------------------------------------------------- |
+| `app`       | PHP-FPM 8.4 running Laravel (your code is mounted live)  |
+| `nginx`     | Web server on port 8090 → forwards PHP requests to `app` |
+| `db`        | MySQL 8.4 (data kept in the `dbdata` Docker volume)      |
+| `vite`      | Vite dev server for hot-reloading Vue/Tailwind changes   |
+| `queue`     | Runs background jobs (Slack messages, webhooks…)         |
+| `scheduler` | Runs scheduled tasks (metrics sync…)                     |
+| `mailpit`   | Catches outgoing email                                   |
 
 `queue` and `scheduler` don't reload code changes automatically. Run `make restart` after changing jobs.
 
