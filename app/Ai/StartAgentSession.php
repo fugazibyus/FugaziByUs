@@ -3,7 +3,6 @@
 namespace App\Ai;
 
 use App\Ai\Contracts\ManagedAgentsGateway;
-use App\Ai\Exceptions\AgentConfigurationException;
 use App\Ai\Exceptions\DailyBudgetExceededException;
 
 /**
@@ -16,21 +15,18 @@ class StartAgentSession
         private readonly AgentRegistry $registry,
         private readonly ManagedAgentsGateway $gateway,
         private readonly TaskPrompt $prompt,
+        private readonly GitHubAppTokenIssuer $github,
     ) {}
 
     /**
-     * Everything that would be sent, without calling the API (for --dry-run).
+     * Everything that would be sent, without calling any API (for --dry-run).
      *
      * @return array<string, mixed>
      */
-    public function plan(AgentTask $task): array
+    public function plan(AgentTask $task, string $githubToken = '********'): array
     {
         $agent = $this->registry->find($task->agent);
-        $token = (string) config('ai.github_token');
-
-        if ($token === '') {
-            throw new AgentConfigurationException('AI_GITHUB_TOKEN is not set – the agent needs it to clone and push the repository.');
-        }
+        $this->github->ensureConfigured();
 
         return [
             'agent' => $this->registry->agentId($agent),
@@ -41,7 +37,7 @@ class StartAgentSession
             'metadata' => $task->metadata(),
             'repositories' => [[
                 'url' => 'https://github.com/'.config('ai.repository'),
-                'token' => $token,
+                'token' => $githubToken,
                 'mount_path' => (string) config('ai.mount_path'),
                 'branch' => $task->branch ?? (string) config('ai.base_branch'),
             ]],
@@ -50,8 +46,15 @@ class StartAgentSession
 
     public function handle(AgentTask $task): SessionHandle
     {
-        $plan = $this->plan($task);
+        $this->plan($task);
         $this->guardDailyBudget();
+
+        // A fresh one-hour token for this run: it authenticates the repository mount and,
+        // through the vault, the GitHub CLI. `ai:refresh-github-token` renews both while it runs.
+        $token = $this->github->mint()->value;
+        $this->gateway->storeGithubToken($this->registry->vaultId(), $token);
+
+        $plan = $this->plan($task, $token);
 
         $session = $this->gateway->createSession($plan);
         $this->gateway->sendMessage($session->id, $this->prompt->build($task, $session->id));

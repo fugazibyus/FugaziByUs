@@ -18,4 +18,14 @@ interface ManagedAgentsGateway
 
     /** List-price spend (USD) of every session created since midnight UTC. */
     public function spentTodayUsd(): float;
+
+    /** Create or replace the vault's GH_TOKEN credential (used by the GitHub CLI in the sandbox). */
+    public function storeGithubToken(string $vaultId, string $token): void;
+
+    /**
+     * Give every active FugaziByUs session a fresh token for its mounted repository.
+     *
+     * @return int how many sessions were updated
+     */
+    public function refreshRepositoryTokens(string $token): int;
 }

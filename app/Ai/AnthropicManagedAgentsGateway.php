@@ -5,6 +5,12 @@ namespace App\Ai;
 use Anthropic\Beta\BetaMonetaryAmount;
 use Anthropic\Beta\Sessions\BetaManagedAgentsBudgetLimit;
 use Anthropic\Beta\Sessions\BetaManagedAgentsGitHubRepositoryResourceParams;
+use Anthropic\Beta\Sessions\Resources\ManagedAgentsGitHubRepositoryResource;
+use Anthropic\Beta\Vaults\Credentials\ManagedAgentsEnvironmentVariableAuthResponse;
+use Anthropic\Beta\Vaults\Credentials\ManagedAgentsEnvironmentVariableCreateParams;
+use Anthropic\Beta\Vaults\Credentials\ManagedAgentsEnvironmentVariableUpdateParams;
+use Anthropic\Beta\Vaults\Credentials\ManagedAgentsInjectionLocationParams;
+use Anthropic\Beta\Vaults\Credentials\ManagedAgentsLimitedCredentialNetworkingParams;
 use Anthropic\Client;
 use App\Ai\Contracts\ManagedAgentsGateway;
 use Carbon\CarbonImmutable;
@@ -81,5 +87,52 @@ class AnthropicManagedAgentsGateway implements ManagedAgentsGateway
         }
 
         return $cents / 100;
+    }
+
+    public function storeGithubToken(string $vaultId, string $token): void
+    {
+        $credentials = $this->client->beta->vaults->credentials;
+
+        foreach ($credentials->list($vaultId)->pagingEachItem() as $credential) {
+            if ($credential->auth instanceof ManagedAgentsEnvironmentVariableAuthResponse && $credential->auth->secretName === 'GH_TOKEN') {
+                $credentials->update($credential->id, vaultID: $vaultId, auth: ManagedAgentsEnvironmentVariableUpdateParams::with(secretValue: $token));
+
+                return;
+            }
+        }
+
+        // First run: the token is only sent to GitHub hosts and substituted at egress,
+        // so it never enters the sandbox.
+        $credentials->create($vaultId, displayName: 'GitHub CLI token (GH_TOKEN)', auth: ManagedAgentsEnvironmentVariableCreateParams::with(
+            networking: ManagedAgentsLimitedCredentialNetworkingParams::with(['api.github.com', 'github.com', 'uploads.github.com']),
+            secretName: 'GH_TOKEN',
+            secretValue: $token,
+            injectionLocation: ManagedAgentsInjectionLocationParams::with(header: true),
+        ));
+    }
+
+    public function refreshRepositoryTokens(string $token): int
+    {
+        $updated = 0;
+        $page = $this->client->beta->sessions->list(
+            createdAtGte: CarbonImmutable::now('UTC')->subDay(),
+            statuses: ['running', 'idle', 'rescheduling'],
+            limit: 100,
+        );
+
+        foreach ($page->pagingEachItem() as $session) {
+            if (($session->metadata['app'] ?? null) !== 'fugazibyus') {
+                continue;
+            }
+
+            foreach ($session->resources as $resource) {
+                if ($resource instanceof ManagedAgentsGitHubRepositoryResource) {
+                    $this->client->beta->sessions->resources->update($resource->id, sessionID: $session->id, authorizationToken: $token);
+                    $updated++;
+                }
+            }
+        }
+
+        return $updated;
     }
 }

@@ -6,6 +6,7 @@ use Anthropic\Client;
 use App\Ai\AgentRegistry;
 use App\Ai\AnthropicManagedAgentsGateway;
 use App\Ai\Contracts\ManagedAgentsGateway;
+use App\Ai\GitHubAppTokenIssuer;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +30,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(ManagedAgentsGateway::class, fn () => new AnthropicManagedAgentsGateway(
             new Client,
         ));
+
+        $this->app->bind(GitHubAppTokenIssuer::class, fn () => GitHubAppTokenIssuer::fromConfig());
     }
 
     /**

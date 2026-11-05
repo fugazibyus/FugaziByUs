@@ -1,7 +1,9 @@
 # Vault (credential container) for the AI agents. This file only creates/renames the vault –
-# credentials are added with `make ai-vault-github` and never stored in git.
+# credentials are written by the app and never stored in git.
 #   GH_TOKEN  → environment_variable credential for the GitHub CLI (substituted at egress,
-#               only for GitHub hosts – the agent never sees the real token)
+#               only for GitHub hosts – the agent never sees the real token). It holds a
+#               one-hour "Fugazi AI" GitHub App token: `ai:start` sets it before each run and
+#               `ai:refresh-github-token` (scheduled every 30 min) renews it.
 type: vault
 display_name: FugaziByUs agents – GitHub
 metadata:

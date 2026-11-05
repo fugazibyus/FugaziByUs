@@ -13,6 +13,12 @@ class FakeManagedAgentsGateway implements ManagedAgentsGateway
     /** @var list<array{string, string}> */
     public array $messages = [];
 
+    /** @var array<string, string> vault ID => GH_TOKEN */
+    public array $vaultTokens = [];
+
+    /** @var list<string> */
+    public array $refreshedWith = [];
+
     public function __construct(public float $spentToday = 0.0) {}
 
     public function createSession(array $params): SessionHandle
@@ -30,5 +36,17 @@ class FakeManagedAgentsGateway implements ManagedAgentsGateway
     public function spentTodayUsd(): float
     {
         return $this->spentToday;
+    }
+
+    public function storeGithubToken(string $vaultId, string $token): void
+    {
+        $this->vaultTokens[$vaultId] = $token;
+    }
+
+    public function refreshRepositoryTokens(string $token): int
+    {
+        $this->refreshedWith[] = $token;
+
+        return count($this->created);
     }
 }

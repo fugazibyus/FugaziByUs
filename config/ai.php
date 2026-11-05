@@ -11,9 +11,14 @@ return [
     'repository' => env('AI_REPOSITORY', 'fugazibyus/FugaziByUs'),
     'base_branch' => env('AI_BASE_BRANCH', 'develop'),
 
-    // Token the agents use for git (mounted repo) and the GitHub CLI. In GitHub Actions this
-    // is the bot's token; locally you can use your own fine-grained token.
-    'github_token' => env('AI_GITHUB_TOKEN'),
+    // The "Fugazi AI" GitHub App the agents act as. Every run mints its own one-hour token
+    // from it (App\Ai\GitHubAppTokenIssuer). Locally, point the path at the downloaded .pem.
+    // In GitHub Actions, put the key's contents in AI_GITHUB_APP_PRIVATE_KEY instead.
+    'github_app' => [
+        'id' => env('AI_GITHUB_APP_ID'),
+        'private_key' => env('AI_GITHUB_APP_PRIVATE_KEY'),
+        'private_key_path' => env('AI_GITHUB_APP_PRIVATE_KEY_PATH'),
+    ],
 
     // Where the repo is mounted inside the agent sandbox.
     'mount_path' => '/workspace/repo',

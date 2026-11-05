@@ -101,8 +101,8 @@ ai-apply: ## Create/update the agents, environments and vault in Anthropic
 	ant apply agents environments vaults
 	$(MAKE) ai-sync
 
-ai-vault-github: ## Store the agents' GitHub token in the vault (prompts for it)
-	@scripts/ai-vault-github.sh
+ai-github-token: ## Mint a fresh GitHub App token for the vault and running agents (the scheduler does this every 30 min)
+	$(EXEC) php artisan ai:refresh-github-token
 
 ai-run: ## Start a cloud agent: make ai-run agent=developer issue=12 [pr=34 branch=… msg="…"]
 	$(EXEC) php artisan ai:start $(agent) \
@@ -114,4 +114,4 @@ help:
 	@grep -hE '(^[a-zA-Z_-]+:.*?## .*$$)|(^## )' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; /^## /{printf "\n\033[33m%s\033[0m\n", substr($$0, 4); next} {printf "  \033[32m%-10s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: setup up down restart build ps logs shell db-shell artisan migrate fresh composer npm assets test lint check e2e ai-agents ai-sync ai-plan ai-apply ai-vault-github ai-run help
+.PHONY: setup up down restart build ps logs shell db-shell artisan migrate fresh composer npm assets test lint check e2e ai-agents ai-sync ai-plan ai-apply ai-github-token ai-run help

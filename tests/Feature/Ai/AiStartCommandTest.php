@@ -5,10 +5,13 @@ namespace Tests\Feature\Ai;
 use App\Ai\AgentRegistry;
 use App\Ai\Contracts\ManagedAgentsGateway;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AiStartCommandTest extends TestCase
 {
+    use FakesGitHubApp;
+
     private FakeManagedAgentsGateway $gateway;
 
     private string $lockFile;
@@ -26,7 +29,8 @@ class AiStartCommandTest extends TestCase
         }
         File::put($this->lockFile, json_encode(['resources' => $resources]));
 
-        config(['ai.lock_file' => $this->lockFile, 'ai.github_token' => 'test-token', 'ai.daily_budget_usd' => 25]);
+        config(['ai.lock_file' => $this->lockFile, 'ai.daily_budget_usd' => 25]);
+        $this->fakeGitHubApp('ghs_session_token');
         $this->app->forgetInstance(AgentRegistry::class);
 
         $this->gateway = new FakeManagedAgentsGateway;
@@ -73,6 +77,8 @@ class AiStartCommandTest extends TestCase
         $this->assertSame(['app' => 'fugazibyus', 'agent' => 'developer', 'issue' => '12', 'trigger' => 'actions', 'actor' => 'sgoodwin10'], $params['metadata']);
         $this->assertSame('develop', $params['repositories'][0]['branch']);
         $this->assertSame('https://github.com/fugazibyus/FugaziByUs', $params['repositories'][0]['url']);
+        $this->assertSame('ghs_session_token', $params['repositories'][0]['token']);
+        $this->assertSame(['vlt_github' => 'ghs_session_token'], $this->gateway->vaultTokens);
 
         [$sessionId, $message] = $this->gateway->messages[0];
         $this->assertSame('sesn_fake_1', $sessionId);
@@ -99,14 +105,16 @@ class AiStartCommandTest extends TestCase
         $this->assertStringContainsString('Which analytics tools respect privacy?', $this->gateway->messages[0][1]);
     }
 
-    public function test_dry_run_sends_nothing_and_hides_the_token(): void
+    public function test_dry_run_sends_nothing_and_mints_no_token(): void
     {
         $this->artisan('ai:start', ['agent' => 'triage', '--issue' => 3, '--dry-run' => true])
             ->expectsOutputToContain('"agent": "agent_triage"')
-            ->doesntExpectOutputToContain('test-token')
+            ->doesntExpectOutputToContain('ghs_session_token')
             ->assertSuccessful();
 
         $this->assertSame([], $this->gateway->created);
+        $this->assertSame([], $this->gateway->vaultTokens);
+        Http::assertNothingSent();
     }
 
     public function test_the_daily_budget_stops_new_sessions(): void
@@ -118,19 +126,34 @@ class AiStartCommandTest extends TestCase
             ->assertExitCode(2);
 
         $this->assertSame([], $this->gateway->created);
+        Http::assertNothingSent();
     }
 
-    public function test_unknown_agents_and_missing_tokens_fail_clearly(): void
+    public function test_unknown_agents_and_a_missing_github_app_fail_clearly(): void
     {
         $this->artisan('ai:start', ['agent' => 'hacker'])
             ->expectsOutputToContain('Unknown agent [hacker]')
             ->assertFailed();
 
-        config(['ai.github_token' => '']);
+        config(['ai.github_app.id' => null]);
 
         $this->artisan('ai:start', ['agent' => 'triage', '--issue' => 1])
-            ->expectsOutputToContain('AI_GITHUB_TOKEN is not set')
+            ->expectsOutputToContain('GitHub App is not configured')
             ->assertFailed();
+
+        $this->assertSame([], $this->gateway->created);
+    }
+
+    public function test_the_refresh_command_renews_the_vault_and_active_sessions(): void
+    {
+        $this->gateway->createSession(['agent' => 'agent_developer']);
+
+        $this->artisan('ai:refresh-github-token')
+            ->expectsOutputToContain('1 active session(s)')
+            ->assertSuccessful();
+
+        $this->assertSame(['vlt_github' => 'ghs_session_token'], $this->gateway->vaultTokens);
+        $this->assertSame(['ghs_session_token'], $this->gateway->refreshedWith);
     }
 
     public function test_local_subagents_are_in_sync_with_the_agent_definitions(): void
