@@ -1,0 +1,22 @@
+# Code owners must approve changes to these paths (enforced by the branch rules).
+# The @fugazibyus/devs team are the people allowed to approve and merge.
+
+# Default: every change needs a developer review – unless the Merge Gate
+# (a GitHub App on the bypass list) merges an eligible AI pull request.
+*                         @fugazibyus/devs
+
+# The AI workflow itself: prompts, agent environment, automation, guardrails.
+/agents/                  @fugazibyus/devs
+/environments/            @fugazibyus/devs
+/vaults/                  @fugazibyus/devs
+/claude-lock.json         @fugazibyus/devs
+/.github/                 @fugazibyus/devs
+/.claude/                 @fugazibyus/devs
+/CLAUDE.md                @fugazibyus/devs
+
+# Infrastructure and dependencies.
+/docker/                  @fugazibyus/devs
+/docker-compose*.yml      @fugazibyus/devs
+/composer.json            @fugazibyus/devs
+/package.json             @fugazibyus/devs
+/database/migrations/     @fugazibyus/devs

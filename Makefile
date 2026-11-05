@@ -81,9 +81,14 @@ check: ## Run everything CI runs (style, static analysis, types, tests)
 	$(EXEC) npm run types:check
 	$(EXEC) php artisan test
 
+e2e: ## Browser smoke tests (Playwright) against the running local site
+	@test -d node_modules || npm ci
+	npx playwright install chromium
+	npx playwright test
+
 ## —— Help —————————————————————————————————————————————————
 help:
 	@grep -hE '(^[a-zA-Z_-]+:.*?## .*$$)|(^## )' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; /^## /{printf "\n\033[33m%s\033[0m\n", substr($$0, 4); next} {printf "  \033[32m%-10s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: setup up down restart build ps logs shell db-shell artisan migrate fresh composer npm assets test lint check help
+.PHONY: setup up down restart build ps logs shell db-shell artisan migrate fresh composer npm assets test lint check e2e help

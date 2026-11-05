@@ -1,0 +1,34 @@
+# Turns the "Who should handle this?" answer on an issue form into a flow:ai / flow:human label.
+# (Issue forms can only add fixed labels.) The triage agent (phase 5) may later change it.
+name: Issue intake
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  route:
+    name: Route issue
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const body = context.payload.issue.body ?? '';
+            const labels = context.payload.issue.labels.map((l) => l.name);
+            if (labels.some((l) => l.startsWith('flow:'))) {
+              core.info('Flow label already set – nothing to do.');
+              return;
+            }
+            const ai = /###\s*Who should (handle|build|research) this\?\s*\n+\s*Let AI/i.test(body);
+            const flow = ai ? 'flow:ai' : 'flow:human';
+            await github.rest.issues.addLabels({
+              ...context.repo,
+              issue_number: context.payload.issue.number,
+              labels: [flow],
+            });
+            core.notice(`Routed issue #${context.payload.issue.number} → ${flow}`);

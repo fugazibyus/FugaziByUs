@@ -1,0 +1,47 @@
+name: ✨ Suggest a feature or change
+description: An idea for something new, or an improvement to something that exists.
+title: "Feature: "
+labels: ["type:feature", "needs-triage", "source:github"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the idea in plain words. The AI triage agent turns it into clear acceptance criteria
+        and checks back with you if anything is unclear.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve, or who is it for?
+      placeholder: Visitors in dark rooms find the site too bright.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to happen?
+      placeholder: Add a dark mode toggle in the top menu that remembers my choice.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: How will we know it's done? (optional)
+      description: A few bullet points describing what "finished" looks like.
+      placeholder: |
+        - A sun/moon button is in the top menu
+        - My choice is remembered next time I visit
+  - type: dropdown
+    id: flow
+    attributes:
+      label: Who should build this?
+      description: Small, well-described changes are a great fit for the AI workflow. A developer always reviews.
+      options:
+        - Let AI build it
+        - A developer will handle it
+    validations:
+      required: true
+  - type: textarea
+    id: designs
+    attributes:
+      label: Designs or examples (optional)
+      description: Figma links, screenshots or sites that do something similar.

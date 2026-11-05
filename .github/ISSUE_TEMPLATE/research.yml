@@ -1,0 +1,40 @@
+name: 🔎 Ask a research question
+description: Ask the AI researcher to investigate something and report back.
+title: "Research: "
+labels: ["type:research", "needs-triage", "source:github"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The researcher agent investigates, then posts a summary with sources on this issue
+        (and adds it to `docs/research/` so it's kept).
+  - type: textarea
+    id: question
+    attributes:
+      label: What do you want to know?
+      placeholder: Which analytics tools respect privacy and work well with Laravel?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Why are you asking? What will you do with the answer?
+      placeholder: We want to add analytics to the site before the CEO demo.
+  - type: dropdown
+    id: depth
+    attributes:
+      label: How deep should it go?
+      options:
+        - Quick overview (a few key points)
+        - Detailed comparison with recommendation
+    validations:
+      required: true
+  - type: dropdown
+    id: flow
+    attributes:
+      label: Who should research this?
+      options:
+        - Let AI research it
+        - A developer will handle it
+    validations:
+      required: true

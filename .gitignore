@@ -43,3 +43,7 @@ yarn-error.log
 /opencode.jsonc
 .obsidian
 /database/database.sqlite
+
+/test-results
+/playwright-report
+/blob-report

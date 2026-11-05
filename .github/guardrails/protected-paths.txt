@@ -1,0 +1,21 @@
+# Paths AI branches (ai/*) must not change unless a developer adds the
+# `allow-sensitive-paths` label to the pull request. One glob per line
+# (bash extglob, matched against the repo-relative path). Used by the
+# Guardrails check and, later, the Merge Gate.
+.github/**
+agents/**
+environments/**
+vaults/**
+claude-lock.json
+docker/**
+docker-compose*.yml
+Makefile
+.env*
+composer.json
+composer.lock
+package.json
+package-lock.json
+config/fortify.php
+app/Providers/**
+CLAUDE.md
+.claude/settings.json

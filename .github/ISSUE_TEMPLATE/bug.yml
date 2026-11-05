@@ -1,0 +1,59 @@
+name: 🐞 Report a bug
+description: Something on the site is broken or behaving strangely.
+title: "Bug: "
+labels: ["type:bug", "needs-triage", "source:github"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! You don't need to be technical – just describe what you saw.
+        An AI triage agent reads every report within a few minutes and may ask you a question.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Tell us what went wrong.
+      placeholder: When I clicked "Send message" on the contact page, nothing happened.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+      placeholder: I expected a "message sent" notification.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we see it ourselves?
+      description: The steps you took, the page link, and your device/browser if you know them.
+      placeholder: |
+        1. Go to https://…/contact
+        2. Fill in the form
+        3. Click "Send message"
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: How much does it hurt?
+      options:
+        - Minor – a bit annoying
+        - Medium – something doesn't work but there's a workaround
+        - High – people can't use an important part of the site
+    validations:
+      required: true
+  - type: dropdown
+    id: flow
+    attributes:
+      label: Who should handle this?
+      description: The AI workflow can usually fix small bugs within the hour. A developer always reviews before it goes live.
+      options:
+        - Let AI fix it
+        - A developer will handle it
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots (optional)
+      description: Paste or drag images here.
