@@ -1,0 +1,94 @@
+# Local development stack for FugaziByUs.
+#   make up      -> start everything        http://localhost:8090
+#   make down    -> stop everything
+# Core containers: app (php-fpm), nginx, db (mysql).
+# Helpers (same app image): vite (HMR), queue, scheduler. Plus mailpit for email.
+name: fugazibyus
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: docker/php/Dockerfile
+    target: dev
+    args:
+      UID: ${UID:-1000}
+      GID: ${GID:-1000}
+  image: fugazibyus-app:dev
+  # No env_file on purpose: Laravel reads .env itself, so phpunit.xml can safely
+  # switch tests to an in-memory SQLite database without real env vars overriding it.
+  environment:
+    XDEBUG_MODE: ${XDEBUG_MODE:-off}
+  volumes:
+    - .:/var/www/html
+    # Linux node_modules live in a volume so they never clash with macOS binaries.
+    - node_modules:/var/www/html/node_modules
+  extra_hosts:
+    - host.docker.internal:host-gateway
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  app:
+    <<: *app
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8090}:80"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./public:/var/www/html/public:ro
+    depends_on:
+      - app
+
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    ports:
+      - "${FORWARD_DB_PORT:-33060}:3306"
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-fugazi}
+      MYSQL_USER: ${DB_USERNAME:-fugazi}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/app.cnf:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  vite:
+    <<: *app
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173", "--strictPort"]
+    restart: unless-stopped
+    environment:
+      XDEBUG_MODE: "off"
+      VITE_DOCKER: "1"
+    ports:
+      - "${VITE_PORT:-5173}:5173"
+
+  queue:
+    <<: *app
+    restart: unless-stopped
+    command: ["php", "artisan", "queue:work", "--tries=3", "--timeout=90"]
+
+  scheduler:
+    <<: *app
+    restart: unless-stopped
+    command: ["php", "artisan", "schedule:work"]
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_UI_PORT:-8026}:8025"
+
+volumes:
+  dbdata:
+  node_modules:
