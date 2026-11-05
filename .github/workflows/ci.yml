@@ -64,8 +64,11 @@ jobs:
           cache: npm
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: npm ci
-      - name: Prepare app (route types need a booted Laravel)
-        run: cp .env.example .env && php artisan key:generate
+      - name: Prepare app and generate route types (Wayfinder)
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan wayfinder:generate --with-form
       - name: Lint & format (Vite+)
         run: npm run check
       - name: Type check (vue-tsc)
