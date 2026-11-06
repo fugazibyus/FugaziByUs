@@ -37,7 +37,7 @@ jobs:
         with:
           app-id: ${{ vars.MERGE_GATE_APP_ID }}
           private-key: ${{ secrets.MERGE_GATE_APP_PRIVATE_KEY }}
-          permission-variables: write
+          # The token gets the App's own permissions, which must include Variables: read and write.
       - name: Flip the switches
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
