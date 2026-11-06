@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Account\AccountController;
+use App\Http\Controllers\AiWorkflowController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\VersionController;
@@ -18,7 +19,7 @@ Route::post('webhooks/anthropic', AnthropicWebhookController::class)
     ->middleware('throttle:120,1')
     ->name('webhooks.anthropic');
 
-Route::inertia('ai-workflow', 'AiWorkflow')->name('ai-workflow');
+Route::get('ai-workflow', AiWorkflowController::class)->name('ai-workflow');
 
 Route::get('contact', [ContactController::class, 'show'])->name('contact.show');
 Route::post('contact', [ContactController::class, 'store'])

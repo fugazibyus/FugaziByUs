@@ -106,10 +106,10 @@ const maxAgentRuns = computed(() =>
             >
                 <span class="relative flex size-2">
                     <span
-                        class="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-60"
+                        class="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-60"
                     />
                     <span
-                        class="relative inline-flex size-2 rounded-full bg-primary"
+                        class="relative inline-flex size-2 rounded-full bg-success"
                     />
                 </span>
                 Live

@@ -61,7 +61,7 @@ Each agent is a Markdown file in [`agents/`](agents/): the frontmatter holds the
 | **developer**  | A `flow:ai` issue qualifies, or `/ai develop`   | Branches, implements, writes tests, opens a PR                             | $15          |
 | **debugger**   | CI fails on an `ai/*` PR, or `/ai fix`          | Reads the logs and fixes the branch (2 attempts, then `ai:needs-human`)    | $5           |
 | **reviewer**   | CI passes on an `ai/*` PR, or `ai:review` label | Reviews and records a verdict (approve / request changes + risk)           | $3           |
-| **release**    | Mon–Thu 07:00 UTC, or `/ai release`             | Opens the `develop → main` release PR with notes, checks staging and prod  | $2           |
+| **release**    | Mon–Thu 08:30 Sydney, or `/ai release`          | Opens the `develop → main` release PR with notes, checks staging and prod  | $2           |
 
 ---
 
@@ -392,12 +392,14 @@ Full guide: [docs/SETUP-HOSTED.md](docs/SETUP-HOSTED.md).
 
 ## Documentation
 
-| Doc                                          | Covers                                                             |
-| -------------------------------------------- | ------------------------------------------------------------------ |
-| [CLAUDE.md](CLAUDE.md)                       | Rules every developer and agent follows                            |
-| [docs/PLAN.md](docs/PLAN.md)                 | The full design: architecture, agents, labels, gates, Slack, site  |
-| [docs/SETUP-LOCAL.md](docs/SETUP-LOCAL.md)   | Local Docker setup and troubleshooting                             |
-| [docs/SETUP-GITHUB.md](docs/SETUP-GITHUB.md) | Repo rules, labels, issue forms, PR checks                         |
-| [docs/SETUP-AI.md](docs/SETUP-AI.md)         | Anthropic workspace, GitHub Apps, agent automation, gates, metrics |
-| [docs/SETUP-SLACK.md](docs/SETUP-SLACK.md)   | Slack channels, GitHub app, AI bot, kill switch                    |
-| [docs/SETUP-HOSTED.md](docs/SETUP-HOSTED.md) | DigitalOcean staging and production, deploys, rollback             |
+| Doc                                          | Covers                                                                |
+| -------------------------------------------- | --------------------------------------------------------------------- |
+| [CLAUDE.md](CLAUDE.md)                       | Rules every developer and agent follows                               |
+| [docs/PLAN.md](docs/PLAN.md)                 | The full design: architecture, agents, labels, gates, Slack, site     |
+| [docs/SETUP-LOCAL.md](docs/SETUP-LOCAL.md)   | Local Docker setup and troubleshooting                                |
+| [docs/SETUP-GITHUB.md](docs/SETUP-GITHUB.md) | Repo rules, labels, issue forms, PR checks                            |
+| [docs/SETUP-AI.md](docs/SETUP-AI.md)         | Anthropic workspace, GitHub Apps, agent automation, gates, metrics    |
+| [docs/SETUP-SLACK.md](docs/SETUP-SLACK.md)   | Slack channels, GitHub app, AI bot, kill switch                       |
+| [docs/SETUP-HOSTED.md](docs/SETUP-HOSTED.md) | DigitalOcean staging and production, deploys, rollback                |
+| [docs/RUNBOOK.md](docs/RUNBOOK.md)           | When something needs a person: failed deploys, stuck agents, restores |
+| [docs/DEMO-SCRIPT.md](docs/DEMO-SCRIPT.md)   | A 30-minute stakeholder demo, with checklists and fallbacks           |

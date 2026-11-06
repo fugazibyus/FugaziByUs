@@ -1,12 +1,16 @@
 # Asks the release agent to open the release PR develop → main, with release notes.
-# Runs Monday–Thursday morning (production deploys never start on Fridays or weekends),
+# Runs at 08:30 Sydney time Monday–Thursday, so the PR is ready when the Deploy Gate's
+# window opens at 09:00 (production deploys never start on Fridays or weekends). Also runs
 # by hand from the Actions tab, or with `/ai release` in any comment.
 # Skips when develop has nothing new or a release PR is already open.
 name: AI · release
 
 on:
   schedule:
-    - cron: '0 7 * * 1-4' # 07:00 UTC, Mon–Thu
+    # GitHub cron is always UTC and Sydney moves between UTC+10 and UTC+11, so there is one
+    # entry per offset. The check job only lets through the one matching today's offset.
+    - cron: '30 21 * * 0-3' # 08:30 Mon–Thu in Sydney during daylight saving (AEDT, UTC+11)
+    - cron: '30 22 * * 0-3' # 08:30 Mon–Thu in Sydney the rest of the year (AEST, UTC+10)
   workflow_dispatch:
 
 permissions:
@@ -29,8 +33,24 @@ jobs:
     steps:
       - id: check
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
         with:
           script: |
+            // Scheduled runs: only the cron entry for Sydney's current UTC offset goes ahead.
+            // Comparing the entry (not the clock) still works when GitHub starts a run late.
+            if (process.env.SCHEDULE) {
+              const offset = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Sydney', timeZoneName: 'shortOffset' })
+                .formatToParts(new Date())
+                .find((part) => part.type === 'timeZoneName').value; // "GMT+11" or "GMT+10"
+              const entryFor = { 'GMT+11': '30 21 * * 0-3', 'GMT+10': '30 22 * * 0-3' };
+              if (entryFor[offset] !== process.env.SCHEDULE) {
+                core.notice(`Sydney is on ${offset}, so this run isn't 08:30 there – skipping.`);
+                core.setOutput('release', 'no');
+                return;
+              }
+            }
+
             const { data: diff } = await github.rest.repos.compareCommits({ ...context.repo, base: 'main', head: 'develop' });
             const { data: open } = await github.rest.pulls.list({ ...context.repo, state: 'open', base: 'main', head: `${context.repo.owner}:develop` });
             if (diff.ahead_by === 0) {
