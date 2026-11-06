@@ -95,7 +95,7 @@ export const agentTriggers: Record<string, string> = {
     developer: 'A flow:ai issue is approved, or /ai develop',
     debugger: 'CI fails on an ai/* pull request, or /ai fix',
     reviewer: 'CI passes on an ai/* pull request, or /ai review',
-    release: 'Monday–Thursday 07:00 UTC, or /ai release',
+    release: 'Monday–Thursday 08:30 Sydney time, or /ai release',
 };
 
 export const commandGroups: {
