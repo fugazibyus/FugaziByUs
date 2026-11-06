@@ -71,7 +71,7 @@ class DeployPolicy
         if ($release->requestedBy !== null) {
             $decision->check(
                 $release->requesterIsDev,
-                "Requested by @{$release->requestedBy}, a developer (`/ai deploy production`).",
+                "Requested by @{$release->requestedBy}, a developer (".($release->requestedVia ?? '`/ai deploy production`').').',
                 "@{$release->requestedBy} asked to deploy, but only members of @devs can.",
             );
 

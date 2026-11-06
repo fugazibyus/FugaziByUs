@@ -109,7 +109,7 @@ class MergePolicy
     {
         $decision->check(
             $pr->requesterIsDev,
-            "Requested by @{$pr->requestedBy}, a developer (`/ai merge`).",
+            "Requested by @{$pr->requestedBy}, a developer (".($pr->requestedVia ?? '`/ai merge`').').',
             "@{$pr->requestedBy} asked to merge, but only members of @devs can.",
         );
     }

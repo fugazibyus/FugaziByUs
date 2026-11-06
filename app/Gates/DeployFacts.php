@@ -15,6 +15,7 @@ final readonly class DeployFacts
      * @param  list<array{number: int, merged_by: string, labels: list<string>}>  $releasedPrs  PRs merged into develop since the last release
      * @param  list<string>  $devApprovals  developers who approved the release PR
      * @param  array{created_at: CarbonImmutable, state: string}|null  $lastDeploy  latest production deployment
+     * @param  string|null  $requestedVia  how the developer asked, e.g. "`/ai deploy production`" or "a manual run"
      */
     public function __construct(
         public int $number,
@@ -36,5 +37,6 @@ final readonly class DeployFacts
         public ?array $lastDeploy = null,
         public ?string $requestedBy = null,
         public bool $requesterIsDev = false,
+        public ?string $requestedVia = null,
     ) {}
 }

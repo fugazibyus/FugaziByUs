@@ -36,8 +36,10 @@ class GateDeployCommand extends Command
 
             $collector = new GateFactsCollector($github);
             $requestedBy = $this->option('requested-by') ?: null;
+            $via = 'run by hand from the Actions tab';
 
             if ($this->option('comment')) {
+                $via = 'a `/ai` comment';
                 try {
                     $requestedBy = $collector->requesterFromComment($number, (int) $this->option('comment'), 'deploy production');
                 } catch (AgentConfigurationException) {
@@ -45,7 +47,7 @@ class GateDeployCommand extends Command
                 }
             }
 
-            $release = $collector->deploy($number, $requestedBy);
+            $release = $collector->deploy($number, $requestedBy, $requestedBy !== null ? $via : null);
         } catch (AgentConfigurationException $e) {
             $this->components->error($e->getMessage());
 
