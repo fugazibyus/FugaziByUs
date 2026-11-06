@@ -1,0 +1,100 @@
+# Starts the developer (or researcher) agent once triage has finished with an issue.
+#
+# Runs when the labels that decide it change. It always re-reads the issue, so the order
+# the labels arrive in doesn't matter. An agent starts only if ALL of these hold:
+#   - the issue is open, `flow:ai`, typed and sized, and triage is done
+#     (no needs-triage / ai:needs-info)
+#   - nothing is already happening or holding it (ai:in-progress, ai:pr-open, ai:stop,
+#     ai:needs-human, ai:failed, blocked, flow:human)
+#   - EITHER the reporter is a repo collaborator and the size is S or M,
+#     OR a person (never a bot) added `ai:go`
+name: AI · issues
+
+on:
+  issues:
+    types: [labeled, unlabeled]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+# One decision per issue at a time; the `ai:in-progress` label stops a second start.
+concurrency:
+  group: ai-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  decide:
+    name: Should an agent start?
+    if: >-
+      vars.AI_AGENTS != 'off' && github.event.issue.state == 'open' &&
+      ((github.event.action == 'labeled' && contains(fromJSON('["ai:go","flow:ai","size:s","size:m","size:l","type:bug","type:feature","type:research","type:chore"]'), github.event.label.name)) ||
+       (github.event.action == 'unlabeled' && contains(fromJSON('["needs-triage","ai:needs-info"]'), github.event.label.name)))
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      agent: ${{ steps.decide.outputs.agent }}
+    steps:
+      - id: decide
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const issue_number = context.payload.issue.number;
+            const { data: issue } = await github.rest.issues.get({ ...context.repo, issue_number });
+            const labels = issue.labels.map((l) => (typeof l === 'string' ? l : l.name));
+            const has = (name) => labels.includes(name);
+            const skip = (why) => {
+              core.notice(`#${issue_number}: ${why} – no agent started.`);
+              core.setOutput('agent', '');
+            };
+
+            if (issue.state !== 'open') return skip('closed');
+            const holds = ['needs-triage', 'ai:needs-info', 'ai:in-progress', 'ai:pr-open', 'ai:stop', 'ai:needs-human', 'ai:failed', 'blocked', 'flow:human'];
+            const hold = holds.find(has);
+            if (hold) return skip(`labelled ${hold}`);
+            if (!has('flow:ai')) return skip('not flow:ai');
+
+            const agent = has('type:research') ? 'researcher'
+              : ['type:bug', 'type:feature', 'type:chore'].some(has) ? 'developer' : null;
+            if (!agent) return skip('no type label yet');
+            const size = labels.find((l) => l.startsWith('size:'));
+            if (!size) return skip('not sized yet');
+
+            // Did a person (not an agent) add ai:go?
+            let approvedBy = null;
+            if (has('ai:go')) {
+              const events = await github.paginate(github.rest.issues.listEvents, { ...context.repo, issue_number, per_page: 100 });
+              const added = events.filter((e) => e.event === 'labeled' && e.label?.name === 'ai:go').pop();
+              if (added && added.actor?.type !== 'Bot') approvedBy = added.actor.login;
+            }
+
+            // Is the reporter a collaborator? (author_association hides private org membership, so ask.)
+            let insider = ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(issue.author_association);
+            if (!insider && issue.user.type !== 'Bot') {
+              const { data } = await github.rest.repos
+                .getCollaboratorPermissionLevel({ ...context.repo, username: issue.user.login })
+                .catch(() => ({ data: { permission: 'none' } }));
+              insider = ['admin', 'maintain', 'write', 'triage'].includes(data.permission);
+            }
+
+            if (!approvedBy) {
+              if (size === 'size:l') return skip('size L waits for a developer to add ai:go');
+              if (!insider) return skip(`@${issue.user.login} isn't a collaborator, so a developer must add ai:go`);
+            }
+
+            await github.rest.issues.addLabels({ ...context.repo, issue_number, labels: ['ai:in-progress'] });
+            core.notice(`#${issue_number}: starting the ${agent} agent (${approvedBy ? `ai:go from @${approvedBy}` : `${size}, reported by a collaborator`}).`);
+            core.setOutput('agent', agent);
+
+  agent:
+    name: Start
+    needs: decide
+    if: needs.decide.outputs.agent != ''
+    uses: ./.github/workflows/ai-agent.yml
+    secrets: inherit
+    with:
+      agent: ${{ needs.decide.outputs.agent }}
+      issue: ${{ format('{0}', github.event.issue.number) }}
+      trigger: ${{ github.event.label.name == 'ai:go' && 'ai-go' || 'triaged' }}
+      actor: ${{ github.event.sender.login }}

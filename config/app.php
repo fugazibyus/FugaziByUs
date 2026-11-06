@@ -16,6 +16,14 @@ return [
     'name' => env('APP_NAME', 'Laravel'),
 
     /*
+    | Which commit is running, and since when. The deploy sets both; the Deploy Gate reads
+    | them from /version to check that staging runs the release commit.
+    */
+
+    'version' => env('APP_VERSION'),
+    'deployed_at' => env('APP_DEPLOYED_AT'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------

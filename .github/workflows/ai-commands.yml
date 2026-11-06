@@ -1,0 +1,198 @@
+# `/ai …` commands in issue and pull request comments, for repo collaborators.
+#
+#   /ai triage            (issue)  re-run triage
+#   /ai develop [notes]   (issue)  start the developer (or researcher for research issues)
+#   /ai research [notes]  (issue)  start the researcher
+#   /ai fix [hint]        (PR)     start the debugger on the PR's branch
+#   /ai review [focus]    (PR)     start the reviewer
+#   /ai release                    open or refresh the release PR develop → main
+#   /ai stop                       add ai:stop and interrupt the agents working on this issue/PR
+#   /ai merge             (PR)     developers: ask the Merge Gate to merge now (release PR: the Deploy Gate)
+#   /ai deploy production (PR)     developers: ask the Deploy Gate to ship the release PR now
+#   /ai help                       list the commands
+#
+# Also: when the reporter replies to an issue labelled `ai:needs-info`, triage runs again.
+# Comment text is passed to agents as data (environment variables), never run as a script.
+name: AI · commands
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  actions: write # to ask the Merge and Deploy Gates (workflow_dispatch)
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  parse:
+    name: Read the command
+    if: >-
+      github.event.comment.user.type != 'Bot' &&
+      (startsWith(github.event.comment.body, '/ai') ||
+       (contains(github.event.issue.labels.*.name, 'ai:needs-info') && github.event.comment.user.login == github.event.issue.user.login))
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      action: ${{ steps.parse.outputs.action }}
+      agent: ${{ steps.parse.outputs.agent }}
+      issue: ${{ steps.parse.outputs.issue }}
+      pr: ${{ steps.parse.outputs.pr }}
+      branch: ${{ steps.parse.outputs.branch }}
+      message: ${{ steps.parse.outputs.message }}
+    steps:
+      - id: parse
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          AGENTS_ENABLED: ${{ vars.AI_AGENTS != 'off' }}
+          GATES_READY: ${{ vars.MERGE_GATE_APP_ID != '' }}
+        with:
+          script: |
+            const { comment, issue } = context.payload;
+            const number = issue.number;
+            const isPr = Boolean(issue.pull_request);
+            const labels = issue.labels.map((l) => l.name);
+            const enabled = process.env.AGENTS_ENABLED === 'true';
+            const out = (values) => { for (const [k, v] of Object.entries(values)) core.setOutput(k, String(v ?? '')); };
+            const reply = (body) => github.rest.issues.createComment({ ...context.repo, issue_number: number, body });
+            const react = (content) => github.rest.reactions.createForIssueComment({ ...context.repo, comment_id: comment.id, content });
+            out({ action: '' });
+
+            // The reporter answered triage's questions → triage again.
+            if (!comment.body.startsWith('/ai')) {
+              if (!enabled || isPr) return;
+              await react('eyes');
+              return out({ action: 'start', agent: 'triage', issue: number });
+            }
+
+            const match = comment.body.match(/^\/ai\s+([a-z-]+)[ \t]*([\s\S]*)$/i);
+            const command = match?.[1]?.toLowerCase() ?? 'help';
+            const notes = match?.[2]?.trim() ?? '';
+
+            // Only people who can write to the repo can drive the agents.
+            const { data: perm } = await github.rest.repos
+              .getCollaboratorPermissionLevel({ ...context.repo, username: comment.user.login })
+              .catch(() => ({ data: { permission: 'none' } }));
+            if (!['admin', 'maintain', 'write'].includes(perm.permission)) {
+              await react('-1');
+              return reply(`Sorry @${comment.user.login}, only repository collaborators can use \`/ai\` commands.`);
+            }
+
+            const help = [
+              '**`/ai` commands**',
+              '| Command | On | Does |', '| --- | --- | --- |',
+              '| `/ai triage` | issue | Re-run triage |',
+              '| `/ai develop [notes]` | issue | Start the developer (researcher for research issues) |',
+              '| `/ai research [notes]` | issue | Start the researcher |',
+              '| `/ai fix [hint]` | PR | Start the debugger |',
+              '| `/ai review [focus]` | PR | Start the reviewer |',
+              '| `/ai release` | anywhere | Open or refresh the release PR |',
+              '| `/ai stop` | issue / PR | Stop the agents and add `ai:stop` |',
+              '| `/ai merge` | PR | Developers: ask the Merge Gate (or, on the release PR, the Deploy Gate) to merge now |',
+              '| `/ai deploy production` | release PR | Developers: ask the Deploy Gate to ship now |',
+            ].join('\n');
+
+            if (command === 'stop') {
+              await github.rest.issues.addLabels({ ...context.repo, issue_number: number, labels: ['ai:stop'] });
+              await react('+1');
+              return out({ action: 'stop', agent: 'none', [isPr ? 'pr' : 'issue']: number });
+            }
+            if (!enabled) {
+              await react('confused');
+              return reply('The AI agents are switched off (repository variable `AI_AGENTS=off`).');
+            }
+
+            const needs = async (kind) => {
+              if ((kind === 'pr') !== isPr) {
+                await reply(`\`/ai ${command}\` works on ${kind === 'pr' ? 'a pull request' : 'an issue'}.`);
+                return false;
+              }
+              return true;
+            };
+            let pr = null;
+            if (isPr) {
+              ({ data: pr } = await github.rest.pulls.get({ ...context.repo, pull_number: number }));
+              if (pr.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`) {
+                return reply('The agents can only work on branches in this repository, not on forks.');
+              }
+            }
+            const linkedIssue = (pr?.body ?? '').match(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i)?.[1] ?? '';
+            const unhold = async (names) => {
+              for (const name of names.filter((n) => labels.includes(n))) {
+                await github.rest.issues.removeLabel({ ...context.repo, issue_number: number, name }).catch(() => {});
+              }
+            };
+
+            switch (command) {
+              case 'triage':
+                if (!(await needs('issue'))) return;
+                await react('rocket');
+                return out({ action: 'start', agent: 'triage', issue: number, message: notes });
+
+              case 'develop':
+              case 'research': {
+                if (!(await needs('issue'))) return;
+                if (labels.includes('ai:pr-open')) return reply('This issue already has an AI pull request. Use `/ai fix` or `/ai review` on the PR.');
+                if (labels.includes('ai:in-progress')) return reply('An agent is already working on this issue. `/ai stop` first if you want to restart it.');
+                await unhold(['ai:stop', 'ai:failed', 'ai:needs-human']);
+                await github.rest.issues.addLabels({ ...context.repo, issue_number: number, labels: ['ai:in-progress'] });
+                await react('rocket');
+                const agent = command === 'research' || labels.includes('type:research') ? 'researcher' : 'developer';
+                return out({ action: 'start', agent, issue: number, message: notes });
+              }
+
+              case 'fix':
+              case 'review':
+                if (!(await needs('pr'))) return;
+                await unhold(['ai:stop', 'ai:needs-human']);
+                await react('rocket');
+                return out({
+                  action: 'start', agent: command === 'fix' ? 'debugger' : 'reviewer',
+                  pr: number, issue: linkedIssue, branch: pr.head.ref, message: notes,
+                });
+
+              case 'release':
+                await react('rocket');
+                return out({ action: 'start', agent: 'release', message: notes });
+
+              case 'merge':
+              case 'deploy': {
+                if (!(await needs('pr'))) return;
+                if (process.env.GATES_READY !== 'true') return reply('The Merge and Deploy Gates aren\'t set up yet (no `MERGE_GATE_APP_ID`). See docs/SETUP-AI.md §7.');
+                const release = pr.base.ref === 'main';
+                if (command === 'deploy') {
+                  if (notes.split(/\s+/)[0] !== 'production') return reply('Use `/ai deploy production` on the release PR. Staging deploys by itself when develop changes.');
+                  if (!release) return reply('`/ai deploy production` works on the release pull request (develop → main).');
+                }
+                // The gate re-reads this comment to prove who asked, then checks they're in @devs.
+                await github.rest.actions.createWorkflowDispatch({
+                  ...context.repo,
+                  workflow_id: release ? 'deploy-gate.yml' : 'merge-gate.yml',
+                  ref: context.payload.repository.default_branch,
+                  inputs: { pr: String(number), comment_id: String(comment.id) },
+                });
+                await react('rocket');
+                return reply(`🚦 Asked the ${release ? 'Deploy' : 'Merge'} Gate on behalf of @${comment.user.login}. Its decision appears in the gate comment on this PR.`);
+              }
+
+              default:
+                await react('confused');
+                return reply(help);
+            }
+
+  agent:
+    name: Run
+    needs: parse
+    if: needs.parse.outputs.action != ''
+    uses: ./.github/workflows/ai-agent.yml
+    secrets: inherit
+    with:
+      action: ${{ needs.parse.outputs.action }}
+      agent: ${{ needs.parse.outputs.agent }}
+      issue: ${{ needs.parse.outputs.issue }}
+      pr: ${{ needs.parse.outputs.pr }}
+      branch: ${{ needs.parse.outputs.branch }}
+      message: ${{ needs.parse.outputs.message }}
+      trigger: comment
+      actor: ${{ github.event.comment.user.login }}

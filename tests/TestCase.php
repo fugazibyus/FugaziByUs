@@ -26,6 +26,10 @@ abstract class TestCase extends BaseTestCase
         }
 
         parent::setUp();
+
+        // Feature tests check server responses, not compiled assets, so they don't
+        // need a Vite build (CI has none; locally the dev server provides it).
+        $this->withoutVite();
     }
 
     protected function skipUnlessFortifyHas(string $feature, ?string $message = null): void

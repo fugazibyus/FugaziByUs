@@ -28,11 +28,16 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // Claude Managed Agents webhooks (Console → Webhooks). Endpoint: POST /webhooks/anthropic
+    'anthropic' => [
+        'webhook_signing_key' => env('ANTHROPIC_WEBHOOK_SIGNING_KEY'),
+    ],
+
+    // The "Fugazi AI" Slack bot (slack/manifest.yml). The site only uses it to post contact
+    // form messages; GitHub posts everything else itself. Empty token = no Slack.
     'slack' => [
-        'notifications' => [
-            'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
-            'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
-        ],
+        'bot_token' => env('SLACK_BOT_TOKEN'),
+        'contact_channel' => env('SLACK_CHANNEL_CONTACT', 'fugazi-contact'),
     ],
 
 ];

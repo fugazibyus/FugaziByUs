@@ -1,0 +1,62 @@
+# The kill switch: Actions → "AI · pause and resume" → Run workflow (also works from the GitHub
+# mobile app). Pause sets AI_AUTOMERGE_MODE=off and AI_AUTODEPLOY_PRODUCTION=off, so a person
+# merges and ships everything; resume restores devs-only / business-hours. Slack is told.
+#
+# Repository variables can only be changed by an App with the Variables permission, so this
+# runs as the Fugazi Merge Gate App (docs/SETUP-SLACK.md §4).
+name: AI · pause and resume
+
+on:
+  workflow_dispatch:
+    inputs:
+      switch:
+        description: Pause or resume AI merging and AI production deploys
+        type: choice
+        options: [pause, resume]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-switches
+  cancel-in-progress: false
+
+jobs:
+  switch:
+    name: ${{ inputs.switch }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github
+      - name: Token for the Fugazi Merge Gate App
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.MERGE_GATE_APP_ID }}
+          private-key: ${{ secrets.MERGE_GATE_APP_PRIVATE_KEY }}
+          # The token gets the App's own permissions, which must include Variables: read and write.
+      - name: Flip the switches
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SWITCH: ${{ inputs.switch }}
+        run: |
+          if [[ "$SWITCH" == "pause" ]]; then merge=off; deploy=off; else merge=devs-only; deploy=business-hours; fi
+          gh variable set AI_AUTOMERGE_MODE --repo "$GITHUB_REPOSITORY" --body "$merge"
+          gh variable set AI_AUTODEPLOY_PRODUCTION --repo "$GITHUB_REPOSITORY" --body "$deploy"
+          echo "AI_AUTOMERGE_MODE=$merge · AI_AUTODEPLOY_PRODUCTION=$deploy" >> "$GITHUB_STEP_SUMMARY"
+      - name: Tell Slack
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          TO: ${{ vars.SLACK_CHANNEL_ALERTS || 'fugazi-alerts' }}
+          SWITCH: ${{ inputs.switch }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          if [[ "$SWITCH" == "pause" ]]; then
+            TEXT="⏸️ ${ACTOR} paused the AI. It won't merge or ship to production until someone resumes it."
+          else
+            TEXT="▶️ ${ACTOR} resumed the AI. It merges eligible PRs (devs-only) and ships in business hours again."
+          fi
+          TEXT="$TEXT" .github/scripts/slack-alert.sh

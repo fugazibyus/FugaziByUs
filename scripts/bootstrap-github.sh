@@ -63,15 +63,22 @@ TEAM_ID="$(gh api "orgs/$ORG/teams/devs" --jq .id)"
 echo "  $ME is a maintainer of @$ORG/devs (team id $TEAM_ID)"
 
 step "Branch rules (rulesets)"
+# The Fugazi Merge Gate App (docs/SETUP-AI.md §7) joins the bypass list once its ID is known.
+# Like the admins, it may only bypass by merging a pull request, never by pushing.
+GATE_APP_ID="$(gh variable get MERGE_GATE_APP_ID --repo "$REPO" 2>/dev/null || true)"
 for file in "$ROOT"/.github/rulesets/*.json; do
   name="$(jq -r .name "$file")"
+  body="$(jq --arg gate "$GATE_APP_ID" \
+    'if $gate != "" then .bypass_actors += [{actor_type: "Integration", actor_id: ($gate | tonumber), bypass_mode: "pull_request"}] else . end' "$file")"
   id="$(gh api "repos/$REPO/rulesets" --jq ".[] | select(.name == \"$name\") | .id" || true)"
   if [[ -n "$id" ]]; then
-    gh api -X PUT "repos/$REPO/rulesets/$id" --silent --input "$file" && echo "  updated: $name"
+    gh api -X PUT "repos/$REPO/rulesets/$id" --silent --input - <<<"$body" && echo "  updated: $name"
   else
-    gh api -X POST "repos/$REPO/rulesets" --silent --input "$file" && echo "  created: $name"
+    gh api -X POST "repos/$REPO/rulesets" --silent --input - <<<"$body" && echo "  created: $name"
   fi
 done
+[[ -n "$GATE_APP_ID" ]] && echo "  Merge Gate App $GATE_APP_ID may merge pull requests" || echo "  (no MERGE_GATE_APP_ID yet: the Merge Gate isn't on the bypass list)"
+
 
 step "Environments"
 gh api -X PUT "repos/$REPO/environments/staging" --silent --input - <<JSON
@@ -97,6 +104,9 @@ set_var AI_AUTODEPLOY_STAGING on
 set_var AI_AUTODEPLOY_PRODUCTION business-hours
 set_var AI_MAX_AUTOMERGE_SIZE m
 set_var AI_DAILY_BUDGET_USD 25
+set_var AI_MAX_CONCURRENT_SESSIONS 3
+set_var AI_AGENTS on
+[[ -n "$(gh variable get AI_TIMEZONE --repo "$REPO" 2>/dev/null || true)" ]] || set_var AI_TIMEZONE Australia/Sydney
 
 step "Labels"
 "$ROOT/scripts/bootstrap-labels.sh" "$REPO"

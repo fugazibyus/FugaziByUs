@@ -24,7 +24,7 @@
 ```mermaid
 flowchart LR
   subgraph Intake
-    S[Slack /fugazi] -->|Laravel creates issue| GI[GitHub Issue]
+    S[Slack: GitHub app<br/>Create issue] --> GI[GitHub Issue]
     F[GitHub issue forms] --> GI
     C[/ai commands in comments/] --> GA
   end
@@ -44,11 +44,12 @@ flowchart LR
   DG -->|not eligible| H2{Human approves} --> PRD
   MA -. Anthropic webhooks .-> L[Laravel app]
   L --> DB[(ai_runs, metrics)]
-  L --> SL[Slack channels / DMs]
   DB --> W[Homepage AI widget]
+  GI & PR -. GitHub app subscriptions .-> SL[Slack channels / DMs]
+  GA -. AI alerts: gates, agents, budget .-> SL
 ```
 
-**Why hybrid:** the AI workflow never depends on the website being up (Actions start sessions), but Slack, webhooks and the metrics widget still live in one Laravel codebase you can demo.
+**Why hybrid:** the AI workflow never depends on the website being up. Actions start the sessions, and Slack talks to GitHub directly. The Laravel app adds what only it can: the metrics widget (fed by Anthropic webhooks) and the site itself.
 
 **One implementation of "start an agent":** an Artisan command, `php artisan ai:start {agent} --issue= --pr= --branch=`, built on the official Anthropic PHP SDK. It is used by GitHub Actions, by you locally (`make ai-run`), and by the Slack handler. No duplicated logic.
 
@@ -102,21 +103,21 @@ All agents default to `claude-opus-5-5`. The model is one line in each file's fr
 | Agent          | Trigger                                                              | Does                                                                                                                                                                                                                         | Can't                                                                             | Budget |
 | -------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------ |
 | **triage**     | Issue opened, Slack intake, `/ai triage`                             | Classifies type/priority/size, asks clarifying questions, writes acceptance criteria, routes `flow:ai` vs `flow:human`                                                                                                       | Touch code; only labels + comments                                                | $1     |
-| **researcher** | `type:research` + `flow:ai`, Slack `/fugazi research`                | Web research, writes findings to the issue + a `docs/research/*.md` PR                                                                                                                                                       | Change app code                                                                   | $5     |
+| **researcher** | `type:research` + `flow:ai` (including issues created from Slack)    | Web research, writes findings to the issue + a `docs/research/*.md` PR                                                                                                                                                       | Change app code                                                                   | $5     |
 | **developer**  | `flow:ai` issue approved (see §5) or `/ai develop`                   | Branches `ai/<type>/<issue>-slug` from `develop`, implements, writes PHPUnit tests, runs tests/lint in sandbox, opens PR                                                                                                     | Push to `main`/`develop`, edit workflows/agents/infra, merge                      | $15    |
 | **debugger**   | CI fails on an `ai/*` branch, `/ai fix`, bug issues                  | Reads CI logs, reproduces, fixes, pushes to same branch (max 2 attempts, then `ai:needs-human`)                                                                                                                              | Same as developer                                                                 | $5     |
 | **reviewer**   | Every PR from `ai/*`; human PRs on `/ai review` or `ai:review` label | Reviews correctness, security, tests, conventions, UI consistency; posts a GitHub review with inline comments and a structured **verdict** (`approve` / `request-changes`, risk `low/medium/high`) that the Merge Gate reads | Merge directly (only the Merge Gate merges)                                       | $3     |
-| **release**    | Daily schedule, `/ai release`, Slack `/fugazi release`               | Opens the release PR `develop→main` with release notes, runs smoke checks against staging, decides "ready to ship" and asks the Deploy Gate to ship it; after the deploy, checks prod and posts a Slack summary              | Run deploy scripts itself (the Deploy Gate workflow does the deploy and rollback) | $2     |
+| **release**    | Daily schedule, `/ai release`                                        | Opens the release PR `develop→main` with release notes, runs smoke checks against staging, decides "ready to ship" and asks the Deploy Gate to ship it; after the deploy, checks prod and summarises it on the release PR    | Run deploy scripts itself (the Deploy Gate workflow does the deploy and rollback) | $2     |
 
 **Commands that drive the agents**
 
-| Where                                | Commands                                                                                                                                                                                                                                                                                                    |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GitHub comments (collaborators only) | `/ai triage`, `/ai develop`, `/ai fix`, `/ai review`, `/ai research`, `/ai stop`, `/ai merge` (dev-only: ask the Merge Gate to merge now), `/ai release`, `/ai deploy staging\|production` (dev-only)                                                                                                       |
-| Slack                                | `/fugazi bug <text>`, `/fugazi feature <text>`, `/fugazi research <text>`, `/fugazi status`, `/fugazi release`, `/fugazi deploy staging\|production` (only Slack users mapped to `@devs`), `/fugazi pause` (kill switch: turns auto-merge and auto-deploy off), plus a "Send to Fugazi AI" message shortcut |
-| Local Claude Code                    | `/triage 12`, `/develop 12`, `/review 34`, `/debug`, `/research "topic"`, `/release` (same prompts, run on your own working copy)                                                                                                                                                                           |
-| Local terminal → cloud               | `make ai-run agent=developer issue=12` (starts the same Managed Agent remotely), `ant beta:sessions connect` to watch live                                                                                                                                                                                  |
-| Manual deploy                        | Actions → "Deploy" → choose env + ref, or `make deploy env=staging` (break-glass over SSH)                                                                                                                                                                                                                  |
+| Where                                | Commands                                                                                                                                                                                              |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GitHub comments (collaborators only) | `/ai triage`, `/ai develop`, `/ai fix`, `/ai review`, `/ai research`, `/ai stop`, `/ai merge` (dev-only: ask the Merge Gate to merge now), `/ai release`, `/ai deploy staging\|production` (dev-only) |
+| Slack                                | **⋮ → Create issue** on any message, or `/github open fugazibyus/FugaziByUs` (GitHub's app for Slack). Alerts arrive in the `#fugazi-*` channels                                                      |
+| Local Claude Code                    | `/triage 12`, `/develop 12`, `/review 34`, `/debug`, `/research "topic"`, `/release` (same prompts, run on your own working copy)                                                                     |
+| Local terminal → cloud               | `make ai-run agent=developer issue=12` (starts the same Managed Agent remotely), `ant beta:sessions connect` to watch live                                                                            |
+| Manual deploy                        | Actions → "Deploy" → choose env + ref, or `make deploy env=staging` (break-glass over SSH)                                                                                                            |
 
 ---
 
@@ -130,7 +131,7 @@ All agents default to `claude-opus-5-5`. The model is one line in each file's fr
 | `hotfix/<slug>`                                                      | Humans    | `main` → `main` (+ back-merge)             | CI + AI review                                                                                      |
 | `ai/feature/<issue>-slug`, `ai/fix/…`, `ai/research/…`, `ai/chore/…` | AI agents | `develop` → `develop`                      | CI + auto AI review + auto debugger on failure                                                      |
 
-Rules enforced by GitHub rulesets: nobody pushes directly to `main`/`develop`. PRs need green CI and either 1 approval from `@devs` (CODEOWNERS) **or** a merge by the **Fugazi Merge Gate** GitHub App, which is the only actor on the ruleset's bypass list. The coding agents' own account (`fugazi-ai-bot`) can push `ai/*` branches but **can't merge anything itself**. Only the gate merges, and only after its policy checks pass (§6a). A human developer can take over any `ai/*` branch by pushing to it. The `ai:needs-human` label hands it back.
+Rules enforced by GitHub rulesets: nobody pushes directly to `main`/`develop`. PRs need green CI and either 1 approval from `@devs` (CODEOWNERS) **or** a merge by the **Fugazi Merge Gate** GitHub App, which is the only actor on the ruleset's bypass list. The coding agents' own GitHub App (**Fugazi AI**, `fugazi-ai[bot]`) can push `ai/*` branches but **can't merge anything itself**. Only the gate merges, and only after its policy checks pass (§6a). A human developer can take over any `ai/*` branch by pushing to it. The `ai:needs-human` label hands it back.
 
 ---
 
@@ -169,15 +170,15 @@ Rules enforced by GitHub rulesets: nobody pushes directly to `main`/`develop`. P
 6. **Secrets never enter the sandbox.** The GitHub token is injected by Anthropic's git proxy; MCP and API credentials live in a vault and are substituted at egress. The sandbox has limited network egress (GitHub, Packagist, npm only).
 7. **No production access for agents.** Agents see only the repo. Tests run on SQLite in the sandbox and on MySQL in CI.
 8. **Prompt-injection hygiene.** Issue, Slack and PR text is treated as untrusted data in every prompt. Triage has no code-write tools.
-9. **Full audit trail.** Every session is linked in the PR body and stored in `ai_runs` (agent, version, issue/PR, tokens, cost, duration, outcome). Commits come from the `fugazi-ai-bot` identity.
+9. **Full audit trail.** Every session is linked in the PR body and stored in `ai_runs` (agent, version, issue/PR, tokens, cost, duration, outcome). PRs and comments come from the `fugazi-ai[bot]` identity.
 10. **Prompts are code.** Prompt changes go through a PR, review, versioning and rollback.
-11. **One-switch kill.** `/fugazi pause` or repo variable `AI_AUTOMERGE_MODE=off` returns the whole system to "humans merge and approve deploys". In-flight work stops at the PR.
+11. **One-switch kill.** the **AI · pause and resume** workflow or repo variable `AI_AUTOMERGE_MODE=off` returns the whole system to "humans merge and approve deploys". In-flight work stops at the PR.
 
 ### 6a. Merge Gate & Deploy Gate (how AI merges and deploys safely)
 
 Both gates are GitHub Actions workflows that hold a **GitHub App** token (`Fugazi Merge Gate`), the only identity on the ruleset bypass list. Agents never get that token. They can only ask the gate, and the gate re-checks every rule each time. Every decision (merged / refused + reasons) is posted on the PR, sent to Slack and stored in `ai_runs`.
 
-**Policy switches** (repo variables, editable in GitHub or via `/fugazi pause|resume`):
+**Policy switches** (repo variables, editable in GitHub or with the **AI · pause and resume** workflow):
 
 | Variable                   | Values                                                                                          | Default          |
 | -------------------------- | ----------------------------------------------------------------------------------------------- | ---------------- |
@@ -216,21 +217,38 @@ The gate squash-merges with a message linking the issue, the agent sessions and 
 
 ## 7. Slack integration
 
-- **Slack app** created from `slack/manifest.yml`, which declares the slash command `/fugazi`, the message shortcut, the bot scopes and the request URLs on the Laravel app (`/slack/commands`, `/slack/interactions`). Requests are verified with the signing secret.
-- **Inbound:** Slack → Laravel creates a GitHub issue (`source:slack`, reporter's Slack ID stored) → the normal GitHub flow runs → updates are threaded back to the original Slack message.
-- **Outbound routing** (`config/ai-workflow.php`, editable):
+Slack and GitHub talk to each other directly; the website isn't in the middle (setup: `docs/SETUP-SLACK.md`).
 
-| Event                                                             | Channel / person                                         |
-| ----------------------------------------------------------------- | -------------------------------------------------------- |
-| New bug / feature / research                                      | `#fugazi-bugs` / `#fugazi-features` / `#fugazi-research` |
-| Agent run started/finished (+cost)                                | `#fugazi-ai-activity` (threaded per issue)               |
-| PR ready for review (gate said "human needed", with reasons)      | `#fugazi-reviews` + DM to the CODEOWNER on duty          |
-| AI auto-merged a PR                                               | `#fugazi-ai-activity` + DM to the issue reporter         |
+- **Intake (Slack → GitHub):** GitHub's official app for Slack. **⋮ → Create issue** on any message, or `/github open`. The issue's author is the reporter's own GitHub account. Form-less issues are labelled `flow:ai`, `needs-triage`, `source:slack` by the Issue intake workflow, and triage takes over.
+- **GitHub's notifications (GitHub → Slack):** channel subscriptions in the same app, filtered by label and threaded per issue/PR.
+- **The AI's own alerts (GitHub → Slack):** GitHub Actions post with the **Fugazi AI** bot token (`.github/scripts/slack-alert.sh`), and DM the on-duty developer (`SLACK_ON_DUTY`) when a person is needed.
+
+| Event                                                   | Channel / person                                         | Sent by                            |
+| ------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------- |
+| New bug / feature / research                            | `#fugazi-bugs` / `#fugazi-features` / `#fugazi-research` | GitHub app                         |
+| Issue and PR progress, comments, reviews (AI work)      | `#fugazi-ai-activity` (threaded)                         | GitHub app                         |
+| Agent started                                           | `#fugazi-ai-activity`                                    | `ai-agent.yml`                     |
+| Agent couldn't start (budget, error)                    | `#fugazi-alerts` + DM on duty                            | `ai-agent.yml`                     |
+| Merge Gate merged / needs a human review (failed rules) | `#fugazi-ai-activity` / `#fugazi-reviews` + DM on duty   | `merge-gate.yml`                   |
+| Deploy Gate shipping / needs a developer                | `#fugazi-deploys` (+ DM on duty)                         | `deploy-gate.yml`                  |
+| Debugger gave up, `ai:needs-human`                      | `#fugazi-alerts` + DM on duty                            | `ai-pull-requests.yml`, GitHub app |
+| Releases and deployments                                | `#fugazi-deploys`                                        | GitHub app                         |
+| AI paused / resumed                                     | `#fugazi-alerts`                                         | `ai-switches.yml`                  |
+| Contact form submission                                 | `#fugazi-contact`                                        | the website                        |
+
+- **Kill switch:** Actions → **AI · pause and resume** (works from the GitHub mobile app).
+- **Developer actions** (release, merge, deploy) stay in GitHub: `/ai release`, `/ai merge`, `/ai deploy production` comments, or the Actions tab.
+
+----------------------------------------------------------------- | -------------------------------------------------------- |
+| New bug / feature / research | `#fugazi-bugs` / `#fugazi-features` / `#fugazi-research` |
+| Agent run started/finished (+cost) | `#fugazi-ai-activity` (threaded per issue) |
+| PR ready for review (gate said "human needed", with reasons) | `#fugazi-reviews` + DM to the CODEOWNER on duty |
+| AI auto-merged a PR | `#fugazi-ai-activity` + DM to the issue reporter |
 | Release ready / AI deploying to prod / prod deploy needs approval | `#fugazi-deploys` (+ DM to devs when approval is needed) |
-| `ai:needs-human`, `ai:failed`, budget hit                         | `#fugazi-alerts` + DM to the issue's dev                 |
-| Deploy started/succeeded/failed                                   | `#fugazi-deploys` (failures also go to `#fugazi-alerts`) |
-| Your issue shipped                                                | DM to the reporter                                       |
-| Contact form submission                                           | `#fugazi-contact`                                        |
+| `ai:needs-human`, `ai:failed`, budget hit | `#fugazi-alerts` + DM to the issue's dev |
+| Deploy started/succeeded/failed | `#fugazi-deploys` (failures also go to `#fugazi-alerts`) |
+| Your issue shipped | DM to the reporter |
+| Contact form submission | `#fugazi-contact` |
 
 - GitHub username ↔ Slack user ID mapping lives in a `team_members` table, seeded from `config/team.php`.
 
@@ -269,9 +287,9 @@ The gate squash-merges with a message linking the issue, the agent sessions and 
 | DB     | MySQL container (port 33060) | MySQL container + volume, nightly dump | Same + DO weekly backups                                        |
 | Deploy | —                            | Auto on merge to `develop`             | Deploy Gate: AI-shipped when eligible, otherwise a dev approves |
 
-**Pipeline:** Actions build the `app` and `nginx` images (multi-stage: composer + Vite build baked in) and push them to DOCR tagged with the commit SHA. Over SSH, the Droplet runs `docker compose pull && up -d`, `php artisan migrate --force`, and caches config/routes/views. It then health-checks `/up`. **If that fails, it automatically rolls back** to the previous tag. Slack is told either way.
+**Pipeline** (`.github/workflows/deploy.yml`, built in phase 8): Actions build the `app` (php-fpm) and `web` (nginx + TLS) images from one Dockerfile and push them to DOCR tagged with the commit SHA. Production reuses the images of the develop commit staging ran, so it ships exactly what soaked. Over SSH, `deploy/deploy.sh` pulls with a 15-minute read-only registry login, runs `php artisan migrate --force`, starts the stack and checks that `/up` answers and `/version` reports the new commit. **If not, it rolls back** to the previous images and settings, which stay on the server. Slack is told either way. Let's Encrypt certificates are issued on the first deploy and renewed by a certbot container.
 
-**Manual deploy:** a `Deploy` workflow with `workflow_dispatch` (choose environment + any branch/tag/SHA), plus a `make deploy` SSH script as break-glass.
+**Manual deploy:** Actions → Deploy → Run workflow (staging: any branch/tag/SHA from `develop`; production: any commit already on `main`). Break-glass without GitHub: `deploy.sh rollback` on the Droplet. Setup: `docs/SETUP-HOSTED.md`.
 
 Rough running cost: about $29/month in DigitalOcean (2 Droplets + registry). Anthropic usage depends on volume and shows live in the widget. Typical sessions cost from tens of cents (triage) to a few dollars (feature development), always capped by the budgets above.
 
@@ -310,16 +328,16 @@ Rough running cost: about $29/month in DigitalOcean (2 Droplets + registry). Ant
 **GitHub**
 
 1. Create a free org `fugazibyus`, a team `devs` (you), and repo `fugazibyus/FugaziByUs`.
-2. Create a machine user `fugazi-ai-bot` with write access (not in `devs`) and a fine-grained PAT scoped to this repo (contents, issues, pull requests: read/write) → used for the agent repo mount + GitHub MCP vault credential.
+2. Create a GitHub App **Fugazi AI** (contents, pull requests, issues: read/write; actions, checks, statuses: read; no workflows) and install it on the repo. It isn't in `devs` and isn't on the bypass list. Each agent run mints a one-hour token from it, scoped to this repo, for the repo mount and the GitHub CLI vault credential (`docs/SETUP-AI.md` §2).
 3. Create a GitHub App **Fugazi Merge Gate** (permissions: contents, pull requests, checks, deployments) and install it on the repo. Its App ID and private key go into GitHub secrets, and it's added to the ruleset bypass list.
-4. Rulesets on `main`/`develop`, environments `staging` and `production` (prod requires a dev reviewer, with the Deploy Gate as a custom deployment protection rule), policy variables from §6a, and secrets per environment (list generated in `SETUP-HOSTED.md`).
+4. Rulesets on `main`/`develop`, environments `staging` and `production` (prod deploys only from `main`, which only the Deploy Gate or a dev can merge into; no reviewer click, see `SETUP-HOSTED.md` §5), policy variables from §6a, and secrets per environment (list generated in `SETUP-HOSTED.md`).
 
 **DigitalOcean**
 
-1. Create an API token → secret `DIGITALOCEAN_ACCESS_TOKEN`.
+1. Create a registry-scoped API token → secret `DIGITALOCEAN_ACCESS_TOKEN`.
 2. Create a Container Registry (Basic).
-3. Create 2 Droplets (Ubuntu LTS, 2 GB, Docker preinstalled) with your SSH key plus a dedicated deploy key, and a Cloud Firewall (22 from GitHub/you, 80/443 public).
-4. `scripts/droplet-init.sh` handles the rest.
+3. Create 2 Droplets (Ubuntu 24.04, 2 GB) with your SSH key, and a Cloud Firewall (22, 80, 443).
+4. `scripts/deploy-secrets.sh` creates the app keys, database passwords and deploy key; `scripts/droplet-init.sh` prepares each Droplet. Step by step: `docs/SETUP-HOSTED.md`.
 
 **Slack**
 
@@ -336,4 +354,3 @@ Rough running cost: about $29/month in DigitalOcean (2 Droplets + registry). Ant
 - Who besides you is in `@devs` (reviewers who can merge, and whose issues qualify for AI auto-merge).
 - Your timezone and deploy window for `AI_AUTODEPLOY_PRODUCTION=business-hours`.
 - When to allow migrations to auto-merge (suggest: once the flow has run cleanly for a few weeks).
-- Upgrading the bot from a machine user + PAT to a GitHub App (short-lived tokens; nicer `[bot]` identity) once the flow is proven.

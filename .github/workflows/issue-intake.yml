@@ -1,5 +1,7 @@
-# Turns the "Who should handle this?" answer on an issue form into a flow:ai / flow:human label.
-# (Issue forms can only add fixed labels.) The triage agent (phase 5) may later change it.
+# Every new issue: turn the "Who should handle this?" answer into a flow:ai / flow:human label
+# (issue forms can only add fixed labels), or route a form-less report (e.g. created from Slack
+# with the GitHub app) to the AI workflow. Then hand the issue to the triage agent.
+# Triage labels it; ai-issues.yml takes it from there.
 name: Issue intake
 
 on:
@@ -7,6 +9,7 @@ on:
     types: [opened]
 
 permissions:
+  contents: read
   issues: write
 
 jobs:
@@ -18,17 +21,37 @@ jobs:
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            const body = context.payload.issue.body ?? '';
-            const labels = context.payload.issue.labels.map((l) => l.name);
+            const issue = context.payload.issue;
+            const body = issue.body ?? '';
+            const labels = issue.labels.map((l) => l.name);
             if (labels.some((l) => l.startsWith('flow:'))) {
               core.info('Flow label already set – nothing to do.');
               return;
             }
-            const ai = /###\s*Who should (handle|build|research) this\?\s*\n+\s*Let AI/i.test(body);
-            const flow = ai ? 'flow:ai' : 'flow:human';
-            await github.rest.issues.addLabels({
-              ...context.repo,
-              issue_number: context.payload.issue.number,
-              labels: [flow],
-            });
-            core.notice(`Routed issue #${context.payload.issue.number} → ${flow}`);
+
+            // Issue forms answer "Who should handle this?". Issues created without a form –
+            // from Slack with the GitHub app ("Create issue", `/github open`) or the CLI – are
+            // quick reports for the AI workflow: triage decides the type, size and route.
+            const fromForm = /###\s*Who should (handle|build|research) this\?/i.test(body);
+            const add = fromForm
+              ? [/###\s*Who should (handle|build|research) this\?\s*\n+\s*Let AI/i.test(body) ? 'flow:ai' : 'flow:human']
+              : ['flow:ai', 'needs-triage', ...(labels.some((l) => l.startsWith('source:')) ? [] : ['source:slack'])];
+
+            await github.rest.issues.addLabels({ ...context.repo, issue_number: issue.number, labels: add });
+            core.notice(`Routed issue #${issue.number} → ${add.join(', ')}`);
+
+  triage:
+    name: Triage
+    needs: route
+    if: vars.AI_AGENTS != 'off'
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    uses: ./.github/workflows/ai-agent.yml
+    secrets: inherit
+    with:
+      agent: triage
+      issue: ${{ format('{0}', github.event.issue.number) }}
+      trigger: issue-opened
+      actor: ${{ github.event.issue.user.login }}

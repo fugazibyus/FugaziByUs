@@ -1,0 +1,13 @@
+# Sandbox for the researcher agent: open internet so web search and web fetch work.
+# It holds no repo-write credentials beyond the GitHub CLI token (limited to GitHub hosts).
+name: fugazibyus-research
+description: Container with open internet access for research tasks, plus the GitHub CLI.
+config:
+    type: cloud
+    networking:
+        type: unrestricted
+    packages:
+        apt:
+            - gh
+metadata:
+    project: fugazibyus

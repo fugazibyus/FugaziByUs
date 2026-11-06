@@ -1,0 +1,123 @@
+# Deploy Gate: lets the AI ship the release pull request (develop → main) when every rule in
+# app/Gates/DeployPolicy.php passes: deploy window, staging healthy on the release commit for
+# 30 minutes, every released PR checked, no migrations without approval, no recent failed deploy.
+# Merging into main is what deploys production (deploy.yml ships the images staging ran).
+#
+# Re-checks every 30 minutes while a release PR is open (the window and the staging soak
+# change with time), whenever develop's CI finishes, and when labels or approvals change.
+# A developer can also comment `/ai deploy production` on the release PR.
+name: Deploy Gate
+
+on:
+  schedule:
+    - cron: '17,47 * * * *'
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [develop]
+  pull_request_target:
+    types: [labeled, unlabeled, ready_for_review]
+    branches: [main]
+  pull_request_review:
+    types: [submitted]
+  workflow_dispatch:
+    inputs:
+      pr: { description: 'Release pull request number (blank = the open one)', type: string, default: '' }
+      comment_id: { description: 'Set by `/ai …` comments; leave blank when running by hand (you are then the one asking)', type: string, default: '' }
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-gate
+  cancel-in-progress: false
+
+jobs:
+  find:
+    name: Is a release waiting?
+    if: >-
+      vars.MERGE_GATE_APP_ID != '' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') &&
+      (github.event_name != 'pull_request_review' || github.event.pull_request.base.ref == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      pull-requests: read
+    outputs:
+      pr: ${{ steps.find.outputs.pr }}
+    steps:
+      - id: find
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          INPUT_PR: ${{ inputs.pr }}
+        with:
+          script: |
+            if (process.env.INPUT_PR) return core.setOutput('pr', process.env.INPUT_PR);
+            const { data } = await github.rest.pulls.list({ ...context.repo, state: 'open', base: 'main', head: `${context.repo.owner}:develop` });
+            if (!data[0]) {
+              core.notice('No release pull request is open.');
+              return core.setOutput('pr', '');
+            }
+            core.setOutput('pr', String(data[0].number));
+
+  gate:
+    name: Deploy Gate
+    needs: find
+    if: needs.find.outputs.pr != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+      - name: Composer cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ hashFiles('composer.lock') }}
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Token for the Fugazi Merge Gate App
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.MERGE_GATE_APP_ID }}
+          private-key: ${{ secrets.MERGE_GATE_APP_PRIVATE_KEY }}
+      - name: Check the rules and act
+        id: gate
+        env:
+          GATE_GITHUB_TOKEN: ${{ steps.app.outputs.token }}
+          MERGE_GATE_BOT: ${{ steps.app.outputs.app-slug }}[bot]
+          AI_AUTODEPLOY_PRODUCTION: ${{ vars.AI_AUTODEPLOY_PRODUCTION }}
+          AI_TIMEZONE: ${{ vars.AI_TIMEZONE }}
+          STAGING_URL: ${{ vars.STAGING_URL }}
+          PR: ${{ needs.find.outputs.pr }}
+          COMMENT_ID: ${{ inputs.comment_id }}
+          # Run by hand from the Actions tab: the person who clicked is the one asking.
+          REQUESTED_BY: ${{ github.event_name == 'workflow_dispatch' && inputs.comment_id == '' && github.actor || '' }}
+          TRIGGER: ${{ github.event_name }}
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+          args=("$PR" "--trigger=$TRIGGER")
+          [[ -n "$COMMENT_ID" ]] && args+=("--comment=$COMMENT_ID")
+          [[ -n "$REQUESTED_BY" ]] && args+=("--requested-by=$REQUESTED_BY")
+          php artisan gate:deploy "${args[@]}"
+
+      # Only when the decision changed: a merge, a refusal (with the failed rules) or an error.
+      - name: Tell Slack
+        if: always() && steps.gate.outputs.slack != ''
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          TEXT: ${{ steps.gate.outputs.slack }}
+          TO: >-
+            ${{ steps.gate.outputs.action == 'merge' && (vars.SLACK_CHANNEL_DEPLOYS || 'fugazi-deploys')
+              || steps.gate.outputs.action == 'refuse' && format('{0} {1}', vars.SLACK_CHANNEL_DEPLOYS || 'fugazi-deploys', vars.SLACK_ON_DUTY || '')
+              || format('{0} {1}', vars.SLACK_CHANNEL_ALERTS || 'fugazi-alerts', vars.SLACK_ON_DUTY || '') }}
+        run: .github/scripts/slack-alert.sh
+

@@ -8,6 +8,8 @@ environments/**
 vaults/**
 claude-lock.json
 docker/**
+deploy/**
+scripts/**
 docker-compose*.yml
 Makefile
 .env*

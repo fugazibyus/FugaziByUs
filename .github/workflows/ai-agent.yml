@@ -1,0 +1,156 @@
+# Starts (or stops) Claude Managed Agents sessions with `php artisan ai:start` / `ai:stop`.
+# Every AI workflow calls this one, and you can run it by hand: Actions → "AI · agent" → Run workflow.
+#
+# Safety: it always runs the trusted code on the default branch (develop), never code from a
+# pull request, so an AI branch can't change what runs next to the API key and the App key.
+# The session itself only gets a one-hour, single-repo GitHub token.
+name: AI · agent
+
+on:
+  workflow_call:
+    inputs:
+      agent: { type: string, required: true, description: 'triage, researcher, developer, debugger, reviewer, release' }
+      action: { type: string, default: start, description: 'start or stop' }
+      issue: { type: string, default: '' }
+      pr: { type: string, default: '' }
+      branch: { type: string, default: '' }
+      run_id: { type: string, default: '' }
+      attempt: { type: string, default: '' }
+      message: { type: string, default: '' }
+      trigger: { type: string, default: actions }
+      actor: { type: string, default: '' }
+    outputs:
+      result:
+        description: 'started, budget (daily budget reached), busy (too many agents running), stopped or failed'
+        value: ${{ jobs.run.outputs.result }}
+      session_url:
+        value: ${{ jobs.run.outputs.session_url }}
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: Agent
+        type: choice
+        options: [triage, researcher, developer, debugger, reviewer, release]
+      issue: { description: 'Issue number', type: string, default: '' }
+      pr: { description: 'Pull request number (debugger, reviewer)', type: string, default: '' }
+      branch: { description: 'Branch to check out (defaults to develop; the PR branch for debugger/reviewer)', type: string, default: '' }
+      message: { description: 'Extra instructions, or the question for the researcher', type: string, default: '' }
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  run:
+    name: ${{ inputs.action == 'stop' && 'Stop agents' || format('{0} agent', inputs.agent) }}
+    runs-on: ubuntu-latest
+    # Includes up to 20 minutes waiting for a free slot when AI_MAX_CONCURRENT_SESSIONS agents are busy.
+    timeout-minutes: 30
+    outputs:
+      result: ${{ steps.agent.outputs.result }}
+      session_url: ${{ steps.agent.outputs.session_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+      - name: Composer cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ hashFiles('composer.lock') }}
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare the app
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+
+      - name: ${{ inputs.action == 'stop' && 'Stop the agents' || 'Start the agent' }}
+        id: agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AI_GITHUB_APP_ID: ${{ vars.AI_GITHUB_APP_ID }}
+          AI_GITHUB_APP_PRIVATE_KEY: ${{ secrets.AI_GITHUB_APP_PRIVATE_KEY }}
+          AI_GITHUB_APP_PRIVATE_KEY_PATH: ''
+          AI_DAILY_BUDGET_USD: ${{ vars.AI_DAILY_BUDGET_USD }}
+          AI_MAX_CONCURRENT_SESSIONS: ${{ vars.AI_MAX_CONCURRENT_SESSIONS }}
+          ACTION: ${{ inputs.action || 'start' }}
+          AGENT: ${{ inputs.agent }}
+          ISSUE: ${{ inputs.issue }}
+          PR: ${{ inputs.pr }}
+          BRANCH: ${{ inputs.branch }}
+          RUN_ID: ${{ inputs.run_id }}
+          ATTEMPT: ${{ inputs.attempt }}
+          MESSAGE: ${{ inputs.message }}
+          TRIGGER: ${{ github.event_name == 'workflow_dispatch' && 'manual' || inputs.trigger }}
+          ACTOR: ${{ inputs.actor || github.actor }}
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        run: .github/scripts/ai-agent.sh
+
+      - name: Report on the issue or pull request
+        id: report
+        if: always() && inputs.action != 'stop' && (inputs.issue != '' || inputs.pr != '')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RESULT: ${{ steps.agent.outputs.result || 'failed' }}
+          SESSION_URL: ${{ steps.agent.outputs.session_url }}
+          AGENT: ${{ inputs.agent }}
+          ISSUE: ${{ inputs.issue }}
+          PR: ${{ inputs.pr }}
+          ATTEMPT: ${{ inputs.attempt }}
+          TRIGGER: ${{ inputs.trigger }}
+        with:
+          script: |
+            const { RESULT, SESSION_URL, AGENT, ISSUE, PR, ATTEMPT, TRIGGER } = process.env;
+            const target = Number(PR || ISSUE);
+            const name = AGENT.charAt(0).toUpperCase() + AGENT.slice(1);
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const attempt = ATTEMPT ? ` (attempt ${ATTEMPT} of 2)` : '';
+            // Automatic debugger attempts are counted from this marker (see ai-pull-requests.yml).
+            const marker = AGENT === 'debugger' && TRIGGER === 'ci' && RESULT === 'started' ? '\n<!-- ai-debugger-attempt -->' : '';
+
+            const body = {
+              started: `🤖 **${name} agent** started${attempt}. [Watch the session](${SESSION_URL}) · [Workflow run](${runUrl})${marker}`,
+              budget: `⏸️ The **${name} agent** didn't start: today's AI budget is used up. A developer can raise \`AI_DAILY_BUDGET_USD\`, or comment \`/ai ${AGENT === 'developer' ? 'develop' : AGENT}\` tomorrow. [Workflow run](${runUrl})`,
+              busy: `⏳ The **${name} agent** didn't start: too many agents are already working. Comment \`/ai ${AGENT === 'developer' ? 'develop' : AGENT}\` to try again. [Workflow run](${runUrl})`,
+              failed: `⚠️ The **${name} agent** couldn't be started. A developer should check the [workflow run](${runUrl}).`,
+            }[RESULT] ?? `⚠️ Unexpected result \`${RESULT}\` starting the ${name} agent. [Workflow run](${runUrl})`;
+
+            await github.rest.issues.createComment({ ...context.repo, issue_number: target, body });
+
+            // The same news for Slack (posted by the next step).
+            const { data: item } = await github.rest.issues.get({ ...context.repo, issue_number: target });
+            const link = `<${item.html_url}|${PR ? 'PR' : 'issue'} #${target} ${item.title.replace(/[<>|]/g, '')}>`;
+            core.setOutput('slack', {
+              started: `▶️ *${name} agent* started${attempt} on ${link}. <${SESSION_URL}|Watch the session>`,
+              budget: `💸 Today's AI budget is used up, so the *${name} agent* didn't start on ${link}.`,
+              busy: `⏳ Too many agents are working, so the *${name} agent* didn't start on ${link}.`,
+            }[RESULT] ?? `⚠️ The *${name} agent* couldn't be started on ${link}. <${runUrl}|Workflow run>`);
+            core.setOutput('result', RESULT);
+
+            if (RESULT !== 'started' && ISSUE && !PR) {
+              // Release the issue so it can be picked up again.
+              await github.rest.issues.removeLabel({ ...context.repo, issue_number: Number(ISSUE), name: 'ai:in-progress' }).catch(() => {});
+              if (RESULT === 'failed') {
+                await github.rest.issues.addLabels({ ...context.repo, issue_number: Number(ISSUE), labels: ['ai:failed'] });
+              }
+            }
+
+      - name: Tell Slack
+        if: always() && steps.report.outputs.slack != ''
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          TEXT: ${{ steps.report.outputs.slack }}
+          # Starts go to the activity channel; anything that went wrong to alerts and the developer on duty.
+          TO: >-
+            ${{ steps.report.outputs.result == 'started'
+              && (vars.SLACK_CHANNEL_ACTIVITY || 'fugazi-ai-activity')
+              || format('{0} {1}', vars.SLACK_CHANNEL_ALERTS || 'fugazi-alerts', steps.report.outputs.result != 'busy' && vars.SLACK_ON_DUTY || '') }}
+        run: .github/scripts/slack-alert.sh
+
