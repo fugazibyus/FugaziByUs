@@ -1,14 +1,40 @@
 <script setup lang="ts">
-import { Form, Head, usePage } from '@inertiajs/vue3';
-import { Clock, Mail, MessageSquareText } from '@lucide/vue';
+import { Form, Head, Link, usePage } from '@inertiajs/vue3';
+import { ChevronDown, Clock, Mail, MessageSquareText } from '@lucide/vue';
 import { computed } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
+import { aiWorkflow } from '@/routes';
 import { store } from '@/routes/contact';
+
+const faqs = [
+    {
+        question: 'What is FugaziByUs?',
+        answer: 'A demo site that shows a complete AI-driven development lifecycle, from a request coming in to the change going live.',
+    },
+    {
+        question: 'Is the AI really building this site?',
+        answer: 'Yes, together with a human team. AI agents triage requests, write the code and tests, and review the changes. Automated checks and, where needed, developers decide what gets merged and released.',
+        link: { label: 'See how the AI workflow works', href: aiWorkflow() },
+    },
+    {
+        question: 'Who reads my message?',
+        answer: 'Real people on the FugaziByUs team. We read every message and usually reply within one working day.',
+    },
+    {
+        question: 'What do you do with my email address?',
+        answer: "We only use it to reply to you. You won't be added to any mailing list.",
+    },
+];
 
 const user = computed(() => usePage().props.auth.user);
 const knownName = computed(() =>
@@ -167,6 +193,53 @@ const knownName = computed(() =>
                     </div>
                 </Form>
             </div>
+
+            <section
+                class="lg:col-span-5"
+                aria-labelledby="faq-heading"
+                data-test="contact-faq"
+            >
+                <h2
+                    id="faq-heading"
+                    class="text-2xl font-bold tracking-tight sm:text-3xl"
+                >
+                    Frequently asked questions
+                </h2>
+                <div class="mt-6 divide-y rounded-2xl border bg-card shadow-sm">
+                    <Collapsible
+                        v-for="faq in faqs"
+                        :key="faq.question"
+                        v-slot="{ open }"
+                    >
+                        <h3>
+                            <CollapsibleTrigger
+                                class="flex w-full items-center justify-between gap-4 rounded-2xl px-6 py-4 text-left font-medium transition-colors outline-none hover:text-primary focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                            >
+                                {{ faq.question }}
+                                <ChevronDown
+                                    :class="[
+                                        'size-4 shrink-0 text-muted-foreground transition-transform',
+                                        open && 'rotate-180',
+                                    ]"
+                                    aria-hidden="true"
+                                />
+                            </CollapsibleTrigger>
+                        </h3>
+                        <CollapsibleContent
+                            class="px-6 pb-4 text-sm text-muted-foreground"
+                        >
+                            <p>{{ faq.answer }}</p>
+                            <Link
+                                v-if="faq.link"
+                                :href="faq.link.href"
+                                class="mt-2 inline-block font-medium text-primary underline-offset-4 hover:underline"
+                            >
+                                {{ faq.link.label }}
+                            </Link>
+                        </CollapsibleContent>
+                    </Collapsible>
+                </div>
+            </section>
         </div>
     </section>
 </template>
