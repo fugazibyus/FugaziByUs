@@ -1,7 +1,7 @@
 # Deploy Gate: lets the AI ship the release pull request (develop → main) when every rule in
 # app/Gates/DeployPolicy.php passes: deploy window, staging healthy on the release commit for
 # 30 minutes, every released PR checked, no migrations without approval, no recent failed deploy.
-# Merging into main is what deploys production (the deploy workflow arrives in phase 8).
+# Merging into main is what deploys production (deploy.yml ships the images staging ran).
 #
 # Re-checks every 30 minutes while a release PR is open (the window and the staging soak
 # change with time), whenever develop's CI finishes, and when labels or approvals change.

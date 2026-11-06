@@ -10,6 +10,8 @@ use App\Models\AiPullRequest;
 use App\Models\AiRun;
 use App\Support\AiStats;
 use Carbon\CarbonImmutable;
+use Illuminate\Console\Scheduling\Event;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -182,5 +184,19 @@ class AgentMetricsTest extends TestCase
         $this->assertSame(['opened' => 2, 'merged' => 1, 'autoMerged' => 1], $stats['pullRequests']);
         $this->assertSame(30, $stats['avgIssueToPrMinutes']);
         $this->assertCount(3, $stats['recentRuns']); // the running one hasn't finished
+    }
+
+    public function test_servers_without_an_anthropic_key_can_turn_the_scheduled_sync_off(): void
+    {
+        $sync = collect(app(Schedule::class)->events())
+            ->first(fn (Event $event) => str_contains((string) $event->command, 'ai:sync-runs'));
+
+        $this->assertNotNull($sync);
+
+        config(['ai.sync_runs' => true]);
+        $this->assertTrue($sync->filtersPass($this->app));
+
+        config(['ai.sync_runs' => false]);
+        $this->assertFalse($sync->filtersPass($this->app));
     }
 }

@@ -1,0 +1,92 @@
+# Staging and production stack, one per Droplet, in /opt/fugazi.
+# deploy.sh writes the .env next to this file (image tag, domain, database password) and
+# app.env (Laravel's settings, sent by the Deploy workflow). Nothing is built on the server:
+# both images come from DigitalOcean Container Registry, built once in GitHub Actions.
+#
+#   web        nginx + TLS, the only container with open ports
+#   app        php-fpm
+#   queue      queued jobs (Slack messages, metric syncs)
+#   scheduler  php artisan schedule:work
+#   db         MySQL 8.4, data in the `db` volume
+#   certbot    renews the Let's Encrypt certificate twice a day
+name: fugazi
+
+x-app: &app
+    image: ${REGISTRY}/app:${IMAGE_TAG}
+    restart: unless-stopped
+    env_file: app.env
+    volumes:
+        - storage:/var/www/html/storage/app
+    depends_on:
+        db:
+            condition: service_healthy
+
+services:
+    web:
+        image: ${REGISTRY}/web:${IMAGE_TAG}
+        restart: unless-stopped
+        ports:
+            - '${HTTP_PORT:-80}:80'
+            - '${HTTPS_PORT:-443}:443'
+        environment:
+            APP_DOMAIN: ${APP_DOMAIN}
+        volumes:
+            - letsencrypt:/etc/letsencrypt
+            - certbot-www:/var/www/certbot:ro
+        depends_on:
+            - app
+
+    app:
+        <<: *app
+
+    queue:
+        <<: *app
+        command:
+            ['php', 'artisan', 'queue:work', '--tries=3', '--max-time=3600']
+        stop_grace_period: 60s
+
+    scheduler:
+        <<: *app
+        command: ['php', 'artisan', 'schedule:work']
+
+    db:
+        image: mysql:8.4
+        restart: unless-stopped
+        # Small Droplet: a modest buffer pool and no performance schema keep MySQL under ~400 MB.
+        command: ['--innodb-buffer-pool-size=256M', '--performance-schema=OFF']
+        environment:
+            MYSQL_DATABASE: fugazi
+            MYSQL_USER: fugazi
+            MYSQL_PASSWORD: ${DB_PASSWORD}
+            # Nothing needs root, so nobody gets to know its password.
+            MYSQL_RANDOM_ROOT_PASSWORD: 'yes'
+        volumes:
+            - db:/var/lib/mysql
+        healthcheck:
+            test:
+                [
+                    'CMD-SHELL',
+                    'mysqladmin ping -h 127.0.0.1 -u"$$MYSQL_USER" -p"$$MYSQL_PASSWORD" --silent',
+                ]
+            interval: 5s
+            timeout: 5s
+            retries: 30
+
+    certbot:
+        image: certbot/certbot:v5.9.0
+        restart: unless-stopped
+        volumes:
+            - letsencrypt:/etc/letsencrypt
+            - certbot-www:/var/www/certbot
+        entrypoint:
+            [
+                '/bin/sh',
+                '-c',
+                'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done',
+            ]
+
+volumes:
+    db:
+    storage:
+    letsencrypt:
+    certbot-www:

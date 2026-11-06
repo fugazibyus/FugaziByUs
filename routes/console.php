@@ -18,4 +18,5 @@ Schedule::command('ai:refresh-github-token')
 // Metrics safety net: webhooks keep the homepage widget live, this catches anything they missed.
 Schedule::command('ai:sync-runs --days=2')
     ->everyTenMinutes()
-    ->withoutOverlapping();
+    ->withoutOverlapping()
+    ->when(fn () => (bool) config('ai.sync_runs'));

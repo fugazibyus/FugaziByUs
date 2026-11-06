@@ -41,6 +41,10 @@ return [
     // Bounded loops: at most this many agents work at the same time. 0 disables the check.
     'max_concurrent_sessions' => (int) env('AI_MAX_CONCURRENT_SESSIONS', 3),
 
+    // The scheduled metrics sync (ai:sync-runs) needs Anthropic credentials. Hosted servers
+    // without an Anthropic key turn it off, so it doesn't log an error every ten minutes.
+    'sync_runs' => (bool) env('AI_SYNC_RUNS', true),
+
     // Link to a session in the Claude Console. Replace "default" with your workspace ID
     // if your API key belongs to a non-default workspace.
     'console_session_url' => env('ANTHROPIC_CONSOLE_SESSION_URL', 'https://platform.claude.com/workspaces/default/sessions/{id}'),
