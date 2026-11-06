@@ -7,6 +7,7 @@ use App\Ai\AgentRegistry;
 use App\Ai\AnthropicManagedAgentsGateway;
 use App\Ai\Contracts\ManagedAgentsGateway;
 use App\Ai\GitHubAppTokenIssuer;
+use App\Slack\SlackClient;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,8 @@ class AppServiceProvider extends ServiceProvider
 
         // The Anthropic client resolves credentials itself: ANTHROPIC_API_KEY, or the
         // profile from `ant auth login` when no key is set.
+        $this->app->bind(SlackClient::class, fn () => new SlackClient(config('services.slack.bot_token')));
+
         $this->app->bind(ManagedAgentsGateway::class, fn () => new AnthropicManagedAgentsGateway(
             new Client,
         ));

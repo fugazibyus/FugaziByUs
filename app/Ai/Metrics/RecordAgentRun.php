@@ -5,6 +5,7 @@ namespace App\Ai\Metrics;
 use App\Ai\Contracts\ManagedAgentsGateway;
 use App\Ai\SessionSnapshot;
 use App\Models\AiRun;
+use App\Slack\Notifier;
 use App\Support\AiStats;
 use Illuminate\Support\Carbon;
 
@@ -14,7 +15,10 @@ use Illuminate\Support\Carbon;
  */
 class RecordAgentRun
 {
-    public function __construct(private readonly ManagedAgentsGateway $gateway) {}
+    public function __construct(
+        private readonly ManagedAgentsGateway $gateway,
+        private readonly Notifier $notifier,
+    ) {}
 
     public function handle(SessionSnapshot $session): AiRun
     {
@@ -47,8 +51,10 @@ class RecordAgentRun
             $this->readResult($run, $session);
         }
 
+        $wasRunning = $run->exists === false || $run->getOriginal('outcome') === null;
         $run->save();
         AiStats::forget();
+        $this->announce($run, $wasRunning);
 
         return $run;
     }
@@ -74,5 +80,29 @@ class RecordAgentRun
         $run->succeeded = ! in_array($run->outcome, AiRun::UNSUCCESSFUL_OUTCOMES, true);
         $run->summary = isset($result['summary']) ? mb_substr((string) $result['summary'], 0, 500) : null;
         $run->pull_request ??= isset($result['pr']) && (int) $result['pr'] > 0 ? (int) $result['pr'] : null;
+    }
+
+    /** Tell #fugazi-ai-activity when a run starts and when it finishes (recent runs only, so a backfill stays quiet). */
+    private function announce(AiRun $run, bool $wasRunning): void
+    {
+        $recent = ($run->finished_at ?? $run->started_at)?->greaterThan(now()->subHour()) ?? false;
+
+        if (! $recent) {
+            return;
+        }
+
+        $name = (string) ($run->title ?? $run->agent);
+
+        if ($run->wasRecentlyCreated && $run->finished_at === null) {
+            $this->notifier->notify('run.started', "▶️ {$name} started.", $run->issue);
+        } elseif ($wasRunning && $run->outcome !== null) {
+            $minutes = max(1, (int) round($run->active_seconds / 60));
+            $cost = sprintf('$%.2f', $run->cost_cents / 100);
+            $summary = $run->summary !== null ? " {$run->summary}" : '';
+
+            $run->succeeded
+                ? $this->notifier->notify('run.finished', "✔️ {$name}: `{$run->outcome}` ({$cost}, {$minutes} min).{$summary}", $run->issue)
+                : $this->notifier->notify('run.failed', "⚠️ {$name} ended with `{$run->outcome}` ({$cost}, {$minutes} min).{$summary}", $run->issue);
+        }
     }
 }

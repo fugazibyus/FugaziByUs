@@ -33,11 +33,18 @@ return [
         'webhook_signing_key' => env('ANTHROPIC_WEBHOOK_SIGNING_KEY'),
     ],
 
+    // The "Fugazi AI" Slack app (slack/manifest.yml). Without a bot token, alerts are skipped.
     'slack' => [
-        'notifications' => [
-            'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
-            'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
-        ],
+        'bot_token' => env('SLACK_BOT_TOKEN'),
+        'signing_secret' => env('SLACK_SIGNING_SECRET'),
+    ],
+
+    // GitHub sends repository events to POST /webhooks/github, signed with this secret.
+    'github' => [
+        'webhook_secret' => env('GITHUB_WEBHOOK_SECRET'),
+        // Signs developer requests from Slack that GitHub Actions acts on (release, deploy, resume).
+        // The same value is the repository secret AI_DISPATCH_SECRET.
+        'dispatch_secret' => env('AI_DISPATCH_SECRET'),
     ],
 
 ];

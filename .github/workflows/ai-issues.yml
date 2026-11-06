@@ -38,6 +38,8 @@ jobs:
     steps:
       - id: decide
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          AI_APP_SLUG: ${{ vars.AI_GITHUB_APP_SLUG || 'fugazi-ai' }}
         with:
           script: |
             const issue_number = context.payload.issue.number;
@@ -69,18 +71,25 @@ jobs:
               if (added && added.actor?.type !== 'Bot') approvedBy = added.actor.login;
             }
 
+            // Who reported it? Issues from Slack are created by the Fugazi AI App, which notes the
+            // reporter's GitHub login when config/team.php maps them. Only collaborators can edit
+            // an App's issue, so that note can be trusted.
+            let reporter = issue.user.login;
+            const fromSlack = issue.user.login === `${process.env.AI_APP_SLUG}[bot]` && (issue.body ?? '').match(/<!-- reported-by-github: ([A-Za-z0-9-]+) -->/);
+            if (fromSlack) reporter = fromSlack[1];
+
             // Is the reporter a collaborator? (author_association hides private org membership, so ask.)
-            let insider = ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(issue.author_association);
-            if (!insider && issue.user.type !== 'Bot') {
+            let insider = !fromSlack && ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(issue.author_association);
+            if (!insider && (fromSlack || issue.user.type !== 'Bot')) {
               const { data } = await github.rest.repos
-                .getCollaboratorPermissionLevel({ ...context.repo, username: issue.user.login })
+                .getCollaboratorPermissionLevel({ ...context.repo, username: reporter })
                 .catch(() => ({ data: { permission: 'none' } }));
               insider = ['admin', 'maintain', 'write', 'triage'].includes(data.permission);
             }
 
             if (!approvedBy) {
               if (size === 'size:l') return skip('size L waits for a developer to add ai:go');
-              if (!insider) return skip(`@${issue.user.login} isn't a collaborator, so a developer must add ai:go`);
+              if (!insider) return skip(`@${reporter} isn't a collaborator, so a developer must add ai:go`);
             }
 
             await github.rest.issues.addLabels({ ...context.repo, issue_number, labels: ['ai:in-progress'] });

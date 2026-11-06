@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreContactMessageRequest;
 use App\Models\ContactMessage;
+use App\Slack\Notifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -16,14 +17,22 @@ class ContactController extends Controller
         return Inertia::render('Contact');
     }
 
-    public function store(StoreContactMessageRequest $request): RedirectResponse
+    public function store(StoreContactMessageRequest $request, Notifier $notifier): RedirectResponse
     {
-        ContactMessage::create([
+        $message = ContactMessage::create([
             ...$request->safe()->only(['name', 'email', 'subject', 'message']),
             'user_id' => $request->user()?->id,
             'ip_address' => $request->ip(),
             'user_agent' => Str::limit((string) $request->userAgent(), 250, ''),
         ]);
+
+        $notifier->notify('contact.received', sprintf(
+            "📬 *%s* from %s (%s)\n>%s",
+            $message->subject,
+            $message->name,
+            $message->email,
+            str_replace("\n", "\n>", Str::limit($message->message, 600)),
+        ));
 
         Inertia::flash('toast', [
             'type' => 'success',

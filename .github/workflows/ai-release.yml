@@ -1,6 +1,6 @@
 # Asks the release agent to open the release PR develop → main, with release notes.
 # Runs Monday–Thursday morning (production deploys never start on Fridays or weekends),
-# by hand from the Actions tab, or with `/ai release` in any comment.
+# by hand from the Actions tab, with `/ai release` in any comment, or `/fugazi release` in Slack.
 # Skips when develop has nothing new or a release PR is already open.
 name: AI · release
 
@@ -8,6 +8,8 @@ on:
   schedule:
     - cron: '0 7 * * 1-4' # 07:00 UTC, Mon–Thu
   workflow_dispatch:
+  repository_dispatch:
+    types: [ai-release] # `/fugazi release` in Slack
 
 permissions:
   contents: read
@@ -52,4 +54,4 @@ jobs:
     secrets: inherit
     with:
       agent: release
-      trigger: ${{ github.event_name == 'schedule' && 'schedule' || 'manual' }}
+      trigger: ${{ github.event_name == 'schedule' && 'schedule' || github.event_name == 'repository_dispatch' && 'slack' || 'manual' }}

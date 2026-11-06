@@ -1,0 +1,41 @@
+# The "Fugazi AI" Slack app. Create it at https://api.slack.com/apps → Create New App →
+# From a manifest, and paste this file. Once the site is online (phase 8), change
+# fugazibyus.example.com to its host (e.g. 164-90-12-34.sslip.io) in the app's settings.
+# Steps: docs/SETUP-SLACK.md.
+display_information:
+    name: Fugazi AI
+    description: Report bugs and ideas to the FugaziByUs AI workflow, and get its alerts.
+    background_color: '#5b21b6'
+features:
+    app_home: # DMs from the app arrive in its Messages tab
+        home_tab_enabled: false
+        messages_tab_enabled: true
+        messages_tab_read_only_enabled: true
+    bot_user:
+        display_name: Fugazi AI
+        always_online: true
+    slash_commands:
+        - command: /fugazi
+          url: https://fugazibyus.example.com/slack/commands
+          description: Report a bug, feature or question to the AI workflow; status, release, deploy, pause
+          usage_hint: bug|feature|research <text> · status · pause · release · deploy production · resume
+          should_escape: false
+    shortcuts:
+        - name: Send to Fugazi AI
+          type: message
+          callback_id: send_to_fugazi
+          description: Turn this message into a GitHub issue for the AI workflow
+oauth_config:
+    scopes:
+        bot:
+            - commands # /fugazi and the message shortcut
+            - chat:write # post alerts and DMs
+            - chat:write.public # post in the fugazi-* channels without being invited first
+            - im:write # DM reporters and developers
+settings:
+    interactivity:
+        is_enabled: true
+        request_url: https://fugazibyus.example.com/slack/interactions
+    org_deploy_enabled: false
+    socket_mode_enabled: false
+    token_rotation_enabled: false

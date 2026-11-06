@@ -63,7 +63,7 @@ class GateFactsCollector
             behindBy: (int) ($this->github->compare((string) $pr['base']['ref'], $headSha)['behind_by'] ?? 0),
             verdict: $this->verdict($reviews),
             issue: $issueNumber,
-            reportedByDev: $issue !== null && $this->github->isDev($issue['user']['login'] ?? null),
+            reportedByDev: $issue !== null && $this->github->isDev($this->reporter($issue)),
             optedInBy: $this->optedInBy(array_filter([$number, $issueNumber]), $labels),
             requestedBy: $requestedBy,
             requesterIsDev: $requestedBy !== null && $this->github->isDev($requestedBy),
@@ -224,6 +224,24 @@ class GateFactsCollector
         } catch (Throwable) {
             return ['url' => $url, 'healthy' => false, 'sha' => null, 'deployed_at' => null];
         }
+    }
+
+    /**
+     * Who reported the issue. Issues from Slack are created by the Fugazi AI App and name the
+     * reporter's GitHub login (when config/team.php maps them). Only collaborators can edit an
+     * App's issue, so the note is trusted only on the App's own issues.
+     *
+     * @param  array<string, mixed>  $issue
+     */
+    private function reporter(array $issue): ?string
+    {
+        $author = $issue['user']['login'] ?? null;
+
+        if ($author === config('gates.ai_bot') && preg_match('/<!-- reported-by-github: ([A-Za-z0-9-]+) -->/', (string) ($issue['body'] ?? ''), $m)) {
+            return $m[1];
+        }
+
+        return is_string($author) ? $author : null;
     }
 
     /** @return list<string> */

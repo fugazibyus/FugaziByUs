@@ -5,7 +5,8 @@
 #
 # Re-checks every 30 minutes while a release PR is open (the window and the staging soak
 # change with time), whenever develop's CI finishes, and when labels or approvals change.
-# A developer can also comment `/ai deploy production` on the release PR.
+# A developer can also comment `/ai deploy production` on the release PR, or use
+# `/fugazi deploy production` in Slack.
 name: Deploy Gate
 
 on:
@@ -20,6 +21,8 @@ on:
     branches: [main]
   pull_request_review:
     types: [submitted]
+  repository_dispatch:
+    types: [deploy-gate] # `/fugazi deploy production` in Slack (signed by the app)
   workflow_dispatch:
     inputs:
       pr: { description: 'Release pull request number (blank = the open one)', type: string, default: '' }
@@ -88,6 +91,17 @@ jobs:
         with:
           app-id: ${{ vars.MERGE_GATE_APP_ID }}
           private-key: ${{ secrets.MERGE_GATE_APP_PRIVATE_KEY }}
+      - name: Who asked from Slack? (signature checked)
+        id: slack
+        if: github.event_name == 'repository_dispatch'
+        env:
+          DISPATCH_SECRET: ${{ secrets.AI_DISPATCH_SECRET }}
+          EVENT: ${{ github.event.action }}
+          REQUESTED_BY: ${{ github.event.client_payload.requested_by }}
+          PR: ${{ github.event.client_payload.pr }}
+          TS: ${{ github.event.client_payload.ts }}
+          SIGNATURE: ${{ github.event.client_payload.signature }}
+        run: echo "login=$(.github/scripts/verify-dispatch.sh)" >> "$GITHUB_OUTPUT"
       - name: Check the rules and act
         env:
           GATE_GITHUB_TOKEN: ${{ steps.app.outputs.token }}
@@ -98,7 +112,7 @@ jobs:
           PR: ${{ needs.find.outputs.pr }}
           COMMENT_ID: ${{ inputs.comment_id }}
           # Run by hand from the Actions tab: the person who clicked is the one asking.
-          REQUESTED_BY: ${{ github.event_name == 'workflow_dispatch' && inputs.comment_id == '' && github.actor || '' }}
+          REQUESTED_BY: ${{ github.event_name == 'workflow_dispatch' && inputs.comment_id == '' && github.actor || steps.slack.outputs.login }}
           TRIGGER: ${{ github.event_name }}
         run: |
           cp .env.example .env

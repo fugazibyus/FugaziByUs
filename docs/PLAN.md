@@ -232,7 +232,8 @@ The gate squash-merges with a message linking the issue, the agent sessions and 
 | Your issue shipped                                                | DM to the reporter                                       |
 | Contact form submission                                           | `#fugazi-contact`                                        |
 
-- GitHub username ↔ Slack user ID mapping lives in a `team_members` table, seeded from `config/team.php`.
+- GitHub username ↔ Slack user ID mapping lives in `config/team.php` (who's a developer, who's on duty). Slack-only reporters are remembered per issue, so they get DMs without being listed.
+- GitHub events reach the app through a signed repository webhook (`/webhooks/github`), so all routing lives in one place. Developer commands from Slack reach GitHub Actions as `repository_dispatch` events signed with `AI_DISPATCH_SECRET`, because the agents' own token could send the same event.
 
 ---
 

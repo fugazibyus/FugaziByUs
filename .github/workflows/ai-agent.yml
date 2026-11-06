@@ -116,7 +116,7 @@ jobs:
 
             const body = {
               started: `🤖 **${name} agent** started${attempt}. [Watch the session](${SESSION_URL}) · [Workflow run](${runUrl})${marker}`,
-              budget: `⏸️ The **${name} agent** didn't start: today's AI budget is used up. A developer can raise \`AI_DAILY_BUDGET_USD\`, or comment \`/ai ${AGENT === 'developer' ? 'develop' : AGENT}\` tomorrow. [Workflow run](${runUrl})`,
+              budget: `⏸️ The **${name} agent** didn't start: today's AI budget is used up. A developer can raise \`AI_DAILY_BUDGET_USD\`, or comment \`/ai ${AGENT === 'developer' ? 'develop' : AGENT}\` tomorrow. [Workflow run](${runUrl})\n<!-- ai-alert:budget -->`,
               busy: `⏳ The **${name} agent** didn't start: too many agents are already working. Comment \`/ai ${AGENT === 'developer' ? 'develop' : AGENT}\` to try again. [Workflow run](${runUrl})`,
               failed: `⚠️ The **${name} agent** couldn't be started. A developer should check the [workflow run](${runUrl}).`,
             }[RESULT] ?? `⚠️ Unexpected result \`${RESULT}\` starting the ${name} agent. [Workflow run](${runUrl})`;

@@ -1,0 +1,77 @@
+# The kill switch. `/fugazi pause` in Slack (or this workflow by hand) sets AI_AUTOMERGE_MODE=off
+# and AI_AUTODEPLOY_PRODUCTION=off, so a person merges and ships everything until someone resumes.
+# `/fugazi resume` (developers only, signed by the app) restores devs-only / business-hours.
+#
+# Repository variables can only be changed by an App with the Variables permission, so this
+# runs as the Fugazi Merge Gate App (docs/SETUP-SLACK.md).
+name: AI · pause and resume
+
+on:
+  repository_dispatch:
+    types: [ai-pause, ai-resume]
+  workflow_dispatch:
+    inputs:
+      switch:
+        description: Pause or resume AI merging and AI production deploys
+        type: choice
+        options: [pause, resume]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-switches
+  cancel-in-progress: false
+
+jobs:
+  switch:
+    name: ${{ inputs.switch || github.event.action }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github
+      - name: Decide
+        id: decide
+        env:
+          DISPATCH_SECRET: ${{ secrets.AI_DISPATCH_SECRET }}
+          EVENT: ${{ github.event.action }}
+          REQUESTED_BY: ${{ github.event.client_payload.requested_by }}
+          PR: ${{ github.event.client_payload.pr }}
+          TS: ${{ github.event.client_payload.ts }}
+          SIGNATURE: ${{ github.event.client_payload.signature }}
+          MANUAL: ${{ inputs.switch }}
+        run: |
+          if [[ -n "$MANUAL" ]]; then
+            echo "switch=$MANUAL" >> "$GITHUB_OUTPUT"
+          elif [[ "$EVENT" == "ai-pause" ]]; then
+            # Turning the AI off is always allowed.
+            echo "switch=pause" >> "$GITHUB_OUTPUT"
+          elif [[ -n "$(.github/scripts/verify-dispatch.sh)" ]]; then
+            echo "switch=resume" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Resume requests must be signed by the app on a developer's behalf."
+            exit 1
+          fi
+      - name: Token for the Fugazi Merge Gate App
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.MERGE_GATE_APP_ID }}
+          private-key: ${{ secrets.MERGE_GATE_APP_PRIVATE_KEY }}
+          permission-variables: write
+      - name: Flip the switches
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SWITCH: ${{ steps.decide.outputs.switch }}
+        run: |
+          if [[ "$SWITCH" == "pause" ]]; then
+            merge=off; deploy=off
+          else
+            merge=devs-only; deploy=business-hours
+          fi
+          gh variable set AI_AUTOMERGE_MODE --repo "$GITHUB_REPOSITORY" --body "$merge"
+          gh variable set AI_AUTODEPLOY_PRODUCTION --repo "$GITHUB_REPOSITORY" --body "$deploy"
+          echo "AI_AUTOMERGE_MODE=$merge · AI_AUTODEPLOY_PRODUCTION=$deploy" >> "$GITHUB_STEP_SUMMARY"
