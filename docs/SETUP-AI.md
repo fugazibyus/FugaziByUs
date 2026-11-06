@@ -118,18 +118,18 @@ To check it works: Actions → **AI · agent** → Run workflow → agent `triag
 
 ### What starts each agent
 
-| When                                                                     | Agent                                            | Workflow               |
-| ------------------------------------------------------------------------ | ------------------------------------------------ | ---------------------- |
-| An issue is opened                                                       | triage                                           | `issue-intake.yml`     |
-| The reporter replies to an issue labelled `ai:needs-info`                | triage (again)                                   | `ai-commands.yml`      |
-| Triage finishes an issue that qualifies (below)                          | developer, or researcher                         | `ai-issues.yml`        |
-| CI passes on an `ai/*` PR                                                | reviewer (once per commit)                       | `ai-pull-requests.yml` |
-| CI fails on an `ai/*` PR                                                 | debugger (2 attempts max, then `ai:needs-human`) | `ai-pull-requests.yml` |
-| A person adds `ai:review` to any PR                                      | reviewer                                         | `ai-pull-requests.yml` |
-| Mon–Thu 07:00 UTC, if develop is ahead of main and no release PR is open | release                                          | `ai-release.yml`       |
-| `/ai …` comment                                                          | see below                                        | `ai-commands.yml`      |
-| An agent file is merged into develop                                     | `ant apply` + lock file PR                       | `ai-agents-sync.yml`   |
-| Every 30 minutes                                                         | fresh GitHub token for running agents            | `ai-token-refresh.yml` |
+| When                                                                        | Agent                                            | Workflow               |
+| --------------------------------------------------------------------------- | ------------------------------------------------ | ---------------------- |
+| An issue is opened                                                          | triage                                           | `issue-intake.yml`     |
+| The reporter replies to an issue labelled `ai:needs-info`                   | triage (again)                                   | `ai-commands.yml`      |
+| Triage finishes an issue that qualifies (below)                             | developer, or researcher                         | `ai-issues.yml`        |
+| CI passes on an `ai/*` PR                                                   | reviewer (once per commit)                       | `ai-pull-requests.yml` |
+| CI fails on an `ai/*` PR                                                    | debugger (2 attempts max, then `ai:needs-human`) | `ai-pull-requests.yml` |
+| A person adds `ai:review` to any PR                                         | reviewer                                         | `ai-pull-requests.yml` |
+| Mon–Thu 08:30 Sydney, if develop is ahead of main and no release PR is open | release                                          | `ai-release.yml`       |
+| `/ai …` comment                                                             | see below                                        | `ai-commands.yml`      |
+| An agent file is merged into develop                                        | `ant apply` + lock file PR                       | `ai-agents-sync.yml`   |
+| Every 30 minutes                                                            | fresh GitHub token for running agents            | `ai-token-refresh.yml` |
 
 **An issue qualifies for the developer or researcher** when it's open, labelled `flow:ai`, has a type and a size, and triage is done (no `needs-triage` or `ai:needs-info`). Nothing may be holding it: `ai:in-progress`, `ai:pr-open`, `ai:stop`, `ai:needs-human`, `ai:failed`, `blocked` or `flow:human`. Then:
 

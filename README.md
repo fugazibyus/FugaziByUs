@@ -61,7 +61,7 @@ Each agent is a Markdown file in [`agents/`](agents/): the frontmatter holds the
 | **developer**  | A `flow:ai` issue qualifies, or `/ai develop`   | Branches, implements, writes tests, opens a PR                             | $15          |
 | **debugger**   | CI fails on an `ai/*` PR, or `/ai fix`          | Reads the logs and fixes the branch (2 attempts, then `ai:needs-human`)    | $5           |
 | **reviewer**   | CI passes on an `ai/*` PR, or `ai:review` label | Reviews and records a verdict (approve / request changes + risk)           | $3           |
-| **release**    | Mon–Thu 07:00 UTC, or `/ai release`             | Opens the `develop → main` release PR with notes, checks staging and prod  | $2           |
+| **release**    | Mon–Thu 08:30 Sydney, or `/ai release`          | Opens the `develop → main` release PR with notes, checks staging and prod  | $2           |
 
 ---
 
