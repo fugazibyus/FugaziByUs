@@ -3,6 +3,8 @@
 namespace App\Ai\Contracts;
 
 use App\Ai\SessionHandle;
+use App\Ai\SessionSnapshot;
+use Carbon\CarbonImmutable;
 
 /**
  * The few Managed Agents API calls the app makes. Swapped for a fake in tests.
@@ -38,4 +40,20 @@ interface ManagedAgentsGateway
 
     /** Stop a session mid-task. It goes idle and keeps its transcript. */
     public function interruptSession(string $sessionId): void;
+
+    public function session(string $sessionId): SessionSnapshot;
+
+    /**
+     * FugaziByUs sessions created since a moment, archived ones included (for metrics).
+     *
+     * @return list<SessionSnapshot>
+     */
+    public function sessionsSince(CarbonImmutable $since): array;
+
+    /**
+     * The agent's last message (where its JSON result block lives) and when it was sent.
+     *
+     * @return array{text: string, at: CarbonImmutable}|null
+     */
+    public function lastAgentMessage(string $sessionId): ?array;
 }

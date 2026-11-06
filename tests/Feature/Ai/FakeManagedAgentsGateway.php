@@ -4,6 +4,8 @@ namespace Tests\Feature\Ai;
 
 use App\Ai\Contracts\ManagedAgentsGateway;
 use App\Ai\SessionHandle;
+use App\Ai\SessionSnapshot;
+use Carbon\CarbonImmutable;
 
 class FakeManagedAgentsGateway implements ManagedAgentsGateway
 {
@@ -24,6 +26,12 @@ class FakeManagedAgentsGateway implements ManagedAgentsGateway
 
     /** @var list<string> */
     public array $interrupted = [];
+
+    /** @var array<string, SessionSnapshot> */
+    public array $sessions = [];
+
+    /** @var array<string, string> session ID => the agent's last message */
+    public array $lastMessages = [];
 
     public function __construct(public float $spentToday = 0.0) {}
 
@@ -64,5 +72,22 @@ class FakeManagedAgentsGateway implements ManagedAgentsGateway
     public function interruptSession(string $sessionId): void
     {
         $this->interrupted[] = $sessionId;
+    }
+
+    public function session(string $sessionId): SessionSnapshot
+    {
+        return $this->sessions[$sessionId];
+    }
+
+    public function sessionsSince(CarbonImmutable $since): array
+    {
+        return array_values(array_filter($this->sessions, fn (SessionSnapshot $s) => $s->createdAt === null || $s->createdAt->gte($since)));
+    }
+
+    public function lastAgentMessage(string $sessionId): ?array
+    {
+        return isset($this->lastMessages[$sessionId])
+            ? ['text' => $this->lastMessages[$sessionId], 'at' => CarbonImmutable::parse('2026-11-06 01:40:55')]
+            : null;
     }
 }

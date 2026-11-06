@@ -28,6 +28,11 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // Claude Managed Agents webhooks (Console → Webhooks). Endpoint: POST /webhooks/anthropic
+    'anthropic' => [
+        'webhook_signing_key' => env('ANTHROPIC_WEBHOOK_SIGNING_KEY'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
