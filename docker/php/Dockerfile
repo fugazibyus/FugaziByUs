@@ -3,8 +3,9 @@
 # FugaziByUs PHP image. One Dockerfile, several targets:
 #   dev   - local development (bind-mounted code, Node for Vite, Xdebug available)
 #   build - compiles Composer deps + Vite assets (CI / prod only)
-#   prod  - lean runtime image pushed to DigitalOcean Container Registry
-# The nginx image for staging/prod is built from docker/nginx/Dockerfile (target prod).
+#   prod  - lean PHP runtime image (php-fpm, queue, scheduler) pushed to DigitalOcean Container Registry
+#   web   - nginx with TLS and the compiled public/ assets, for staging and production
+# Both hosted images are built from the same build stage, so they always match.
 
 ARG PHP_VERSION=8.4
 ARG NODE_VERSION=24
@@ -90,3 +91,19 @@ COPY --chmod=755 docker/php/entrypoint.prod.sh /usr/local/bin/entrypoint
 USER www-data
 ENTRYPOINT ["entrypoint"]
 CMD ["php-fpm"]
+
+############################
+# web: nginx for staging and production (TLS via Let's Encrypt, see deploy/compose.yml)
+############################
+FROM nginx:1.29-alpine AS web
+
+RUN apk add --no-cache openssl \
+    && rm /etc/nginx/conf.d/default.conf
+
+COPY docker/nginx/prod.conf.template /etc/nginx/templates/default.conf.template
+COPY docker/nginx/security-headers.conf /etc/nginx/snippets/security-headers.conf
+COPY --chmod=755 docker/nginx/entrypoint.d/ /docker-entrypoint.d/
+COPY --from=build /var/www/html/public /var/www/html/public
+
+# Only APP_DOMAIN is substituted into the template; nginx's own $variables stay as they are.
+ENV NGINX_ENVSUBST_FILTER=^APP_DOMAIN$

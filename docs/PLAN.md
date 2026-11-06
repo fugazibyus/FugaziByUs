@@ -287,9 +287,9 @@ Slack and GitHub talk to each other directly; the website isn't in the middle (s
 | DB     | MySQL container (port 33060) | MySQL container + volume, nightly dump | Same + DO weekly backups                                        |
 | Deploy | —                            | Auto on merge to `develop`             | Deploy Gate: AI-shipped when eligible, otherwise a dev approves |
 
-**Pipeline:** Actions build the `app` and `nginx` images (multi-stage: composer + Vite build baked in) and push them to DOCR tagged with the commit SHA. Over SSH, the Droplet runs `docker compose pull && up -d`, `php artisan migrate --force`, and caches config/routes/views. It then health-checks `/up`. **If that fails, it automatically rolls back** to the previous tag. Slack is told either way.
+**Pipeline** (`.github/workflows/deploy.yml`, built in phase 8): Actions build the `app` (php-fpm) and `web` (nginx + TLS) images from one Dockerfile and push them to DOCR tagged with the commit SHA. Production reuses the images of the develop commit staging ran, so it ships exactly what soaked. Over SSH, `deploy/deploy.sh` pulls with a 15-minute read-only registry login, runs `php artisan migrate --force`, starts the stack and checks that `/up` answers and `/version` reports the new commit. **If not, it rolls back** to the previous images and settings, which stay on the server. Slack is told either way. Let's Encrypt certificates are issued on the first deploy and renewed by a certbot container.
 
-**Manual deploy:** a `Deploy` workflow with `workflow_dispatch` (choose environment + any branch/tag/SHA), plus a `make deploy` SSH script as break-glass.
+**Manual deploy:** Actions → Deploy → Run workflow (staging: any branch/tag/SHA from `develop`; production: any commit already on `main`). Break-glass without GitHub: `deploy.sh rollback` on the Droplet. Setup: `docs/SETUP-HOSTED.md`.
 
 Rough running cost: about $29/month in DigitalOcean (2 Droplets + registry). Anthropic usage depends on volume and shows live in the widget. Typical sessions cost from tens of cents (triage) to a few dollars (feature development), always capped by the budgets above.
 
@@ -330,14 +330,14 @@ Rough running cost: about $29/month in DigitalOcean (2 Droplets + registry). Ant
 1. Create a free org `fugazibyus`, a team `devs` (you), and repo `fugazibyus/FugaziByUs`.
 2. Create a GitHub App **Fugazi AI** (contents, pull requests, issues: read/write; actions, checks, statuses: read; no workflows) and install it on the repo. It isn't in `devs` and isn't on the bypass list. Each agent run mints a one-hour token from it, scoped to this repo, for the repo mount and the GitHub CLI vault credential (`docs/SETUP-AI.md` §2).
 3. Create a GitHub App **Fugazi Merge Gate** (permissions: contents, pull requests, checks, deployments) and install it on the repo. Its App ID and private key go into GitHub secrets, and it's added to the ruleset bypass list.
-4. Rulesets on `main`/`develop`, environments `staging` and `production` (prod requires a dev reviewer, with the Deploy Gate as a custom deployment protection rule), policy variables from §6a, and secrets per environment (list generated in `SETUP-HOSTED.md`).
+4. Rulesets on `main`/`develop`, environments `staging` and `production` (prod deploys only from `main`, which only the Deploy Gate or a dev can merge into; no reviewer click, see `SETUP-HOSTED.md` §5), policy variables from §6a, and secrets per environment (list generated in `SETUP-HOSTED.md`).
 
 **DigitalOcean**
 
-1. Create an API token → secret `DIGITALOCEAN_ACCESS_TOKEN`.
+1. Create a registry-scoped API token → secret `DIGITALOCEAN_ACCESS_TOKEN`.
 2. Create a Container Registry (Basic).
-3. Create 2 Droplets (Ubuntu LTS, 2 GB, Docker preinstalled) with your SSH key plus a dedicated deploy key, and a Cloud Firewall (22 from GitHub/you, 80/443 public).
-4. `scripts/droplet-init.sh` handles the rest.
+3. Create 2 Droplets (Ubuntu 24.04, 2 GB) with your SSH key, and a Cloud Firewall (22, 80, 443).
+4. `scripts/deploy-secrets.sh` creates the app keys, database passwords and deploy key; `scripts/droplet-init.sh` prepares each Droplet. Step by step: `docs/SETUP-HOSTED.md`.
 
 **Slack**
 

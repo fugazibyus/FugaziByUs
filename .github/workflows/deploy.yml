@@ -1,0 +1,288 @@
+# Deploys staging on every push to develop and production on every push to main (only the
+# Deploy Gate or a developer can merge into main). Builds the two images once, deploys them
+# over SSH with deploy/deploy.sh, which health-checks the new release and rolls back on its
+# own if it isn't healthy, then tells Slack either way.
+#
+# Production ships the exact images staging ran: a release merge has the same files as
+# develop's head, so it reuses that commit's images instead of building new ones.
+#
+# Deploy by hand: Actions → Deploy → Run workflow.
+#   staging:     run it from develop; any branch, tag or commit.
+#   production:  run it from main; only commits already on main (e.g. to go back a release).
+# Break-glass without GitHub: ssh deploy@<droplet> /opt/fugazi/deploy.sh rollback
+#
+# Setup: docs/SETUP-HOSTED.md. Until the DOCR_REGISTRY variable exists this does nothing.
+name: Deploy
+
+on:
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Where to deploy
+        type: choice
+        options: [staging, production]
+        default: staging
+      ref:
+        description: 'Branch, tag or commit (blank = the branch you run this from). Production only takes commits on main.'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: What to deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      environment: ${{ steps.plan.outputs.environment }}
+      sha: ${{ steps.plan.outputs.sha }}
+      tag: ${{ steps.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          BRANCH: ${{ github.ref_name }}
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          INPUT_REF: ${{ inputs.ref }}
+          AUTODEPLOY_STAGING: ${{ vars.AI_AUTODEPLOY_STAGING }}
+          REGISTRY: ${{ vars.DOCR_REGISTRY }}
+        run: |
+          set -euo pipefail
+          skip() { echo "::notice::$1"; echo "environment=" >>"$GITHUB_OUTPUT"; exit 0; }
+
+          [[ -n "$REGISTRY" ]] || skip "Deploys aren't set up yet (no DOCR_REGISTRY variable). See docs/SETUP-HOSTED.md."
+
+          if [[ "$EVENT" == push ]]; then
+            environment=$([[ "$BRANCH" == main ]] && echo production || echo staging)
+            if [[ "$environment" == staging && "$AUTODEPLOY_STAGING" == off ]]; then
+              skip "Automatic staging deploys are off (AI_AUTODEPLOY_STAGING=off). Run this workflow by hand to deploy."
+            fi
+            sha=$GITHUB_SHA
+          else
+            environment=$INPUT_ENVIRONMENT
+            ref=${INPUT_REF:-$GITHUB_SHA}
+            if [[ ! "$ref" =~ ^[A-Za-z0-9._/][A-Za-z0-9._/-]*$ ]]; then
+              echo "::error::'$ref' isn't a branch, tag or commit."; exit 1
+            fi
+            sha=$(git rev-parse --verify --quiet "origin/${ref}^{commit}" || git rev-parse --verify --quiet "${ref}^{commit}") || {
+              echo "::error::Can't find '$ref' in the repository."; exit 1
+            }
+            if [[ "$environment" == production ]] && ! git merge-base --is-ancestor "$sha" origin/main; then
+              echo "::error::Production only deploys commits that are on main (merged by the Deploy Gate or a developer)."; exit 1
+            fi
+          fi
+
+          # A release merge (develop → main) with the same files as develop's head reuses the
+          # images built for that commit, which staging has been running.
+          tag=$sha
+          read -r -a parents <<<"$(git rev-list --parents -n 1 "$sha")"
+          if [[ "$environment" == production && ${#parents[@]} -eq 3 ]] \
+            && [[ "$(git rev-parse "$sha^{tree}")" == "$(git rev-parse "${parents[2]}^{tree}")" ]]; then
+            tag=${parents[2]}
+            echo "::notice::Release merge: shipping the images of ${tag:0:7}, the develop commit staging ran."
+          fi
+
+          echo "::notice::Deploying ${sha:0:7} to ${environment}."
+          { echo "environment=$environment"; echo "sha=$sha"; echo "tag=$tag"; } >>"$GITHUB_OUTPUT"
+
+  build:
+    name: Build images
+    needs: plan
+    if: needs.plan.outputs.environment != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.tag }}
+          persist-credentials: false
+      - name: Registry login (read/write, expires in 30 minutes)
+        env:
+          DO_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        run: .github/scripts/registry-login.sh read-write 1800 "$RUNNER_TEMP/docker"
+      - name: Build and push (skipped when this commit's images exist)
+        env:
+          IMAGE: registry.digitalocean.com/${{ vars.DOCR_REGISTRY }}
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker"
+          if docker manifest inspect "$IMAGE/app:$TAG" >/dev/null 2>&1 && docker manifest inspect "$IMAGE/web:$TAG" >/dev/null 2>&1; then
+            echo "::notice::Images for ${TAG:0:7} already exist; deploying them as they are."
+            exit 0
+          fi
+          for target in app web; do
+            docker build --file docker/php/Dockerfile --target "$([[ $target == app ]] && echo prod || echo web)" \
+              --label "org.opencontainers.image.revision=$TAG" \
+              --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+              --tag "$IMAGE/$target:$TAG" .
+          done
+          docker push --quiet "$IMAGE/app:$TAG"
+          docker push --quiet "$IMAGE/web:$TAG"
+
+  deploy:
+    name: Deploy to ${{ needs.plan.outputs.environment }}
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: ${{ needs.plan.outputs.environment }}
+      url: ${{ steps.target.outputs.url }}
+    steps:
+      # Deploy tooling always comes from the branch this run belongs to (develop or main),
+      # never from the commit being deployed.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            deploy
+            .github/scripts
+      - name: Where to
+        id: target
+        env:
+          ENVIRONMENT: ${{ needs.plan.outputs.environment }}
+          HOST: ${{ vars.DEPLOY_HOST }}
+          DOMAIN: ${{ vars.APP_DOMAIN }}
+          KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+          HAS_KEY: ${{ secrets.DEPLOY_SSH_KEY != '' }}
+          HAS_APP_KEY: ${{ secrets.APP_KEY != '' }}
+          HAS_DB_PASSWORD: ${{ secrets.DB_PASSWORD != '' }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "$HOST" ]] || missing+=("DEPLOY_HOST variable")
+          [[ -n "$KNOWN_HOSTS" ]] || missing+=("DEPLOY_KNOWN_HOSTS variable")
+          [[ "$HAS_KEY" == true ]] || missing+=("DEPLOY_SSH_KEY secret")
+          [[ "$HAS_APP_KEY" == true ]] || missing+=("APP_KEY secret")
+          [[ "$HAS_DB_PASSWORD" == true ]] || missing+=("DB_PASSWORD secret")
+          if (( ${#missing[@]} )); then
+            echo "::error::The $ENVIRONMENT environment is missing: ${missing[*]}. See docs/SETUP-HOSTED.md."
+            exit 1
+          fi
+          # Without a real domain, sslip.io turns the Droplet's IP into a hostname with HTTPS.
+          if [[ -z "$DOMAIN" ]]; then
+            DOMAIN="${HOST//./-}.sslip.io"
+            [[ "$ENVIRONMENT" == staging ]] && DOMAIN="staging.$DOMAIN"
+          fi
+          { echo "domain=$DOMAIN"; echo "url=https://$DOMAIN"; } >>"$GITHUB_OUTPUT"
+
+      - name: Laravel settings for the server
+        env:
+          ENVIRONMENT: ${{ needs.plan.outputs.environment }}
+          DOMAIN: ${{ steps.target.outputs.domain }}
+          SHA: ${{ needs.plan.outputs.sha }}
+          APP_KEY: ${{ secrets.APP_KEY }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          # Only production posts contact messages to Slack; staging would spam the real channel.
+          SLACK_BOT_TOKEN: ${{ needs.plan.outputs.environment == 'production' && secrets.SLACK_BOT_TOKEN || '' }}
+          # Optional, per environment: a separate Anthropic key for the metrics webhook and sync.
+          ANTHROPIC_API_KEY: ${{ secrets.APP_ANTHROPIC_API_KEY }}
+          ANTHROPIC_WEBHOOK_SIGNING_KEY: ${{ secrets.ANTHROPIC_WEBHOOK_SIGNING_KEY }}
+        # Staging runs as APP_ENV=production too, so it behaves exactly like production.
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s\n' \
+            "APP_NAME=FugaziByUs" \
+            "APP_ENV=production" \
+            "APP_KEY=$APP_KEY" \
+            "APP_DEBUG=false" \
+            "APP_URL=https://$DOMAIN" \
+            "APP_VERSION=$SHA" \
+            "APP_DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            "LOG_CHANNEL=stderr" \
+            "LOG_LEVEL=info" \
+            "DB_CONNECTION=mysql" \
+            "DB_HOST=db" \
+            "DB_PORT=3306" \
+            "DB_DATABASE=fugazi" \
+            "DB_USERNAME=fugazi" \
+            "DB_PASSWORD=$DB_PASSWORD" \
+            "SESSION_DRIVER=database" \
+            "SESSION_SECURE_COOKIE=true" \
+            "CACHE_STORE=database" \
+            "QUEUE_CONNECTION=database" \
+            "MAIL_MAILER=log" \
+            "MAIL_FROM_ADDRESS=hello@$DOMAIN" \
+            "AI_REPOSITORY=$GITHUB_REPOSITORY" \
+            "AI_SYNC_RUNS=$([[ -n "$ANTHROPIC_API_KEY" ]] && echo true || echo false)" \
+            "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" \
+            "ANTHROPIC_WEBHOOK_SIGNING_KEY=$ANTHROPIC_WEBHOOK_SIGNING_KEY" \
+            "SLACK_BOT_TOKEN=$SLACK_BOT_TOKEN" >"$RUNNER_TEMP/app.env"
+
+      - name: SSH key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ vars.DEPLOY_HOST }}
+        run: |
+          install -d -m 700 ~/.ssh
+          (umask 077 && printf '%s\n' "$DEPLOY_SSH_KEY" >~/.ssh/deploy && printf '%s\n' "$KNOWN_HOSTS" >~/.ssh/known_hosts)
+          printf '%s\n' 'Host droplet' "  HostName $HOST" '  User deploy' '  IdentityFile ~/.ssh/deploy' \
+            '  StrictHostKeyChecking yes' '  ConnectTimeout 15' '  ServerAliveInterval 15' >~/.ssh/config
+
+      - name: Upload
+        env:
+          DO_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          scp -q deploy/compose.yml deploy/deploy.sh deploy/backup.sh droplet:/opt/fugazi/
+          scp -q "$RUNNER_TEMP/app.env" droplet:/opt/fugazi/app.env.next
+          # A read-only registry login that expires in 15 minutes; deploy.sh deletes it after the pull.
+          .github/scripts/registry-login.sh read-only 900 "$RUNNER_TEMP/pull"
+          ssh droplet 'umask 077 && mkdir -p ~/.fugazi-registry && cat >~/.fugazi-registry/config.json' <"$RUNNER_TEMP/pull/config.json"
+          rm -f "$RUNNER_TEMP/app.env" "$RUNNER_TEMP/pull/config.json"
+
+      - name: Deploy, health-check, roll back if unhealthy
+        id: deploy
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+          SHA: ${{ needs.plan.outputs.sha }}
+          DOMAIN: ${{ steps.target.outputs.domain }}
+          REGISTRY: registry.digitalocean.com/${{ vars.DOCR_REGISTRY }}
+          EMAIL: ${{ vars.LETSENCRYPT_EMAIL }}
+        run: |
+          set -o pipefail
+          args=(deploy --tag "$TAG" --version "$SHA" --domain "$DOMAIN" --registry "$REGISTRY")
+          [[ -n "$EMAIL" ]] && args+=(--email "$EMAIL")
+          status=0
+          # shellcheck disable=SC2029 # the arguments are quoted here on purpose
+          ssh droplet "/opt/fugazi/deploy.sh $(printf '%q ' "${args[@]}")" 2>&1 | tee "$RUNNER_TEMP/deploy.log" || status=$?
+          echo "outcome=$(grep -E '❌|✅' "$RUNNER_TEMP/deploy.log" | tail -n1 | sed -E 's/^[0-9:]+ +//')" >>"$GITHUB_OUTPUT"
+          exit $status
+
+      - name: Tell Slack
+        if: always() && needs.plan.outputs.environment != ''
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          TO: >-
+            ${{ job.status == 'success' && (vars.SLACK_CHANNEL_DEPLOYS || 'fugazi-deploys')
+              || format('{0} {1}', vars.SLACK_CHANNEL_DEPLOYS || 'fugazi-deploys', vars.SLACK_ON_DUTY || '') }}
+          STATUS: ${{ job.status }}
+          ENVIRONMENT: ${{ needs.plan.outputs.environment }}
+          URL: ${{ steps.target.outputs.url }}
+          SHA: ${{ needs.plan.outputs.sha }}
+          OUTCOME: ${{ steps.deploy.outputs.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.plan.outputs.sha }}
+        run: |
+          commit="<${COMMIT_URL}|${SHA:0:7}>"
+          if [[ "$STATUS" == success ]]; then
+            TEXT="🚢 ${ENVIRONMENT^} is live on ${commit}: <${URL}|${URL#https://}>"
+          else
+            TEXT="🔥 Deploy of ${commit} to ${ENVIRONMENT} failed. ${OUTCOME:-It stopped before reaching the server.} <${RUN_URL}|Logs>"
+          fi
+          export TEXT
+          .github/scripts/slack-alert.sh

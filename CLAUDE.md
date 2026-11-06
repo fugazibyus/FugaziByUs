@@ -22,6 +22,7 @@ FugaziByUs is a demo site that shows a complete AI-driven development lifecycle.
 | Design tokens           | top of `resources/css/app.css` (`--brand-*`)                                                                                       |
 | AI agents               | `agents/<name>/agent.md` (prompt + config), synced with `ant apply`                                                                |
 | AI workflow docs        | `docs/PLAN.md`, `docs/SETUP-*.md`                                                                                                  |
+| Hosting (staging, prod) | `deploy/*` (server stack, deploy + rollback script), `.github/workflows/deploy.yml`, `docs/SETUP-HOSTED.md`                        |
 
 ## Commands
 
