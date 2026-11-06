@@ -72,6 +72,7 @@ export default defineConfig({
         ignorePatterns: [
             '.github/**',
             '.claude/agents/**',
+            'claude-lock.json',
             'composer.json',
             'resources/js/components/ui/*',
             'resources/views/mail/*',
