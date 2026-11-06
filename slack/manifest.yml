@@ -1,0 +1,28 @@
+# The "Fugazi AI" Slack bot: it only POSTS. GitHub Actions use its token to send the AI's
+# alerts (agent started, gate decisions, budget, failures), and the site uses it for contact
+# form messages. Issues are created from Slack with GitHub's own app, not this one.
+#
+# Create it at https://api.slack.com/apps → Create New App → From a manifest → paste this file.
+# Steps: docs/SETUP-SLACK.md.
+display_information:
+    name: Fugazi AI
+    description: Alerts from the FugaziByUs AI workflow.
+    background_color: '#5b21b6'
+features:
+    app_home: # DMs to the developer on duty arrive in the app's Messages tab
+        home_tab_enabled: false
+        messages_tab_enabled: true
+        messages_tab_read_only_enabled: true
+    bot_user:
+        display_name: Fugazi AI
+        always_online: true
+oauth_config:
+    scopes:
+        bot:
+            - chat:write # post alerts
+            - chat:write.public # post in public #fugazi-* channels without an invite
+            - im:write # DM the developer on duty
+settings:
+    org_deploy_enabled: false
+    socket_mode_enabled: false
+    token_rotation_enabled: false

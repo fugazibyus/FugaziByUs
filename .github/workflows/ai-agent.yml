@@ -94,6 +94,7 @@ jobs:
         run: .github/scripts/ai-agent.sh
 
       - name: Report on the issue or pull request
+        id: report
         if: always() && inputs.action != 'stop' && (inputs.issue != '' || inputs.pr != '')
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
@@ -123,6 +124,16 @@ jobs:
 
             await github.rest.issues.createComment({ ...context.repo, issue_number: target, body });
 
+            // The same news for Slack (posted by the next step).
+            const { data: item } = await github.rest.issues.get({ ...context.repo, issue_number: target });
+            const link = `<${item.html_url}|${PR ? 'PR' : 'issue'} #${target} ${item.title.replace(/[<>|]/g, '')}>`;
+            core.setOutput('slack', {
+              started: `▶️ *${name} agent* started${attempt} on ${link}. <${SESSION_URL}|Watch the session>`,
+              budget: `💸 Today's AI budget is used up, so the *${name} agent* didn't start on ${link}.`,
+              busy: `⏳ Too many agents are working, so the *${name} agent* didn't start on ${link}.`,
+            }[RESULT] ?? `⚠️ The *${name} agent* couldn't be started on ${link}. <${runUrl}|Workflow run>`);
+            core.setOutput('result', RESULT);
+
             if (RESULT !== 'started' && ISSUE && !PR) {
               // Release the issue so it can be picked up again.
               await github.rest.issues.removeLabel({ ...context.repo, issue_number: Number(ISSUE), name: 'ai:in-progress' }).catch(() => {});
@@ -130,3 +141,16 @@ jobs:
                 await github.rest.issues.addLabels({ ...context.repo, issue_number: Number(ISSUE), labels: ['ai:failed'] });
               }
             }
+
+      - name: Tell Slack
+        if: always() && steps.report.outputs.slack != ''
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          TEXT: ${{ steps.report.outputs.slack }}
+          # Starts go to the activity channel; anything that went wrong to alerts and the developer on duty.
+          TO: >-
+            ${{ steps.report.outputs.result == 'started'
+              && (vars.SLACK_CHANNEL_ACTIVITY || 'fugazi-ai-activity')
+              || format('{0} {1}', vars.SLACK_CHANNEL_ALERTS || 'fugazi-alerts', steps.report.outputs.result != 'busy' && vars.SLACK_ON_DUTY || '') }}
+        run: .github/scripts/slack-alert.sh
+

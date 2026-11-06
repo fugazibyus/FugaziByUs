@@ -78,11 +78,13 @@ class GateDeployCommand extends Command
             }
         }
 
-        $github->upsertComment($number, GateReport::DEPLOY_MARKER, GateReport::render('deploy', $decision, $release->headSha, (string) $this->option('trigger'), $note));
+        $changed = $github->upsertComment($number, GateReport::DEPLOY_MARKER, GateReport::render('deploy', $decision, $release->headSha, (string) $this->option('trigger'), $note));
+        $url = 'https://github.com/'.config('gates.repository')."/pull/{$number}";
 
-        if ($output = getenv('GITHUB_OUTPUT')) {
-            file_put_contents($output, 'action='.($note === null ? $decision->action() : 'error')."\n", FILE_APPEND);
-        }
+        GateReport::writeGithubOutput([
+            'action' => $note === null ? $decision->action() : 'error',
+            'slack' => $changed ? (string) GateReport::slack('deploy', $decision, $url, "release PR #{$number}", $note) : '',
+        ]);
 
         return $note === null ? self::SUCCESS : self::FAILURE;
     }

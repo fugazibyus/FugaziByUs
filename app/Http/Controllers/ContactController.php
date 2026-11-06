@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreContactMessageRequest;
+use App\Jobs\PostContactMessageToSlack;
 use App\Models\ContactMessage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Str;
@@ -18,12 +19,14 @@ class ContactController extends Controller
 
     public function store(StoreContactMessageRequest $request): RedirectResponse
     {
-        ContactMessage::create([
+        $message = ContactMessage::create([
             ...$request->safe()->only(['name', 'email', 'subject', 'message']),
             'user_id' => $request->user()?->id,
             'ip_address' => $request->ip(),
             'user_agent' => Str::limit((string) $request->userAgent(), 250, ''),
         ]);
+
+        PostContactMessageToSlack::dispatch($message);
 
         Inertia::flash('toast', [
             'type' => 'success',

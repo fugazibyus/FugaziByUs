@@ -89,6 +89,7 @@ jobs:
           app-id: ${{ vars.MERGE_GATE_APP_ID }}
           private-key: ${{ secrets.MERGE_GATE_APP_PRIVATE_KEY }}
       - name: Check the rules and act
+        id: gate
         env:
           GATE_GITHUB_TOKEN: ${{ steps.app.outputs.token }}
           MERGE_GATE_BOT: ${{ steps.app.outputs.app-slug }}[bot]
@@ -107,3 +108,16 @@ jobs:
           [[ -n "$COMMENT_ID" ]] && args+=("--comment=$COMMENT_ID")
           [[ -n "$REQUESTED_BY" ]] && args+=("--requested-by=$REQUESTED_BY")
           php artisan gate:deploy "${args[@]}"
+
+      # Only when the decision changed: a merge, a refusal (with the failed rules) or an error.
+      - name: Tell Slack
+        if: always() && steps.gate.outputs.slack != ''
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          TEXT: ${{ steps.gate.outputs.slack }}
+          TO: >-
+            ${{ steps.gate.outputs.action == 'merge' && (vars.SLACK_CHANNEL_DEPLOYS || 'fugazi-deploys')
+              || steps.gate.outputs.action == 'refuse' && format('{0} {1}', vars.SLACK_CHANNEL_DEPLOYS || 'fugazi-deploys', vars.SLACK_ON_DUTY || '')
+              || format('{0} {1}', vars.SLACK_CHANNEL_ALERTS || 'fugazi-alerts', vars.SLACK_ON_DUTY || '') }}
+        run: .github/scripts/slack-alert.sh
+
