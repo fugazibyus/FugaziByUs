@@ -38,6 +38,9 @@ return [
     // reaches this many US dollars. 0 disables the check.
     'daily_budget_usd' => (float) env('AI_DAILY_BUDGET_USD', 25),
 
+    // Bounded loops: at most this many agents work at the same time. 0 disables the check.
+    'max_concurrent_sessions' => (int) env('AI_MAX_CONCURRENT_SESSIONS', 3),
+
     // Link to a session in the Claude Console. Replace "default" with your workspace ID
     // if your API key belongs to a non-default workspace.
     'console_session_url' => env('ANTHROPIC_CONSOLE_SESSION_URL', 'https://platform.claude.com/workspaces/default/sessions/{id}'),

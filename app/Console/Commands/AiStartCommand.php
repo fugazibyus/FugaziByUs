@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Ai\AgentTask;
 use App\Ai\Exceptions\AgentConfigurationException;
 use App\Ai\Exceptions\DailyBudgetExceededException;
+use App\Ai\Exceptions\TooManySessionsException;
 use App\Ai\StartAgentSession;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -25,6 +26,11 @@ use Illuminate\Console\Command;
 #[Description('Start a Claude Managed Agents session for one of the FugaziByUs agents')]
 class AiStartCommand extends Command
 {
+    /** Exit codes the GitHub workflows act on. */
+    public const BUDGET_REACHED = 2;
+
+    public const TOO_MANY_SESSIONS = 3;
+
     public function handle(StartAgentSession $starter): int
     {
         $task = new AgentTask(
@@ -53,7 +59,11 @@ class AiStartCommand extends Command
         } catch (DailyBudgetExceededException $e) {
             $this->components->warn($e->getMessage());
 
-            return 2;
+            return self::BUDGET_REACHED;
+        } catch (TooManySessionsException $e) {
+            $this->components->warn($e->getMessage());
+
+            return self::TOO_MANY_SESSIONS;
         } catch (AgentConfigurationException $e) {
             $this->components->error($e->getMessage());
 

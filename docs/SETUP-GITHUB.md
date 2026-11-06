@@ -31,7 +31,7 @@ Everything below was applied by `scripts/bootstrap-github.sh`. The script is saf
 | Security     | Secret scanning + push protection (blocks committing keys), Dependabot alerts                                                                                                                                                     |
 | Actions      | Workflow token is read-only by default. Actions **cannot approve PRs**                                                                                                                                                            |
 | Environments | `staging` (deploys from `develop`) and `production` (deploys from `main`, needs a `@devs` approval until the Deploy Gate exists)                                                                                                  |
-| Variables    | `AI_AUTOMERGE_MODE=devs-only`, `AI_AUTODEPLOY_STAGING=on`, `AI_AUTODEPLOY_PRODUCTION=business-hours`, `AI_MAX_AUTOMERGE_SIZE=m`, `AI_DAILY_BUDGET_USD=25`                                                                         |
+| Variables    | `AI_AUTOMERGE_MODE=devs-only`, `AI_AUTODEPLOY_STAGING=on`, `AI_AUTODEPLOY_PRODUCTION=business-hours`, `AI_MAX_AUTOMERGE_SIZE=m`, `AI_DAILY_BUDGET_USD=25`, `AI_MAX_CONCURRENT_SESSIONS=3`, `AI_AGENTS=on`                         |
 | Labels       | 30 labels for type, flow, control, status, priority, size and source (`scripts/bootstrap-labels.sh`)                                                                                                                              |
 
 ## Checks on every pull request
@@ -58,7 +58,7 @@ Everything below was applied by `scripts/bootstrap-github.sh`. The script is saf
 
 - Issue forms: **Bug**, **Feature** and **Research**, written for non-developers. Blank issues are off.
 - Each form asks "Who should handle this?". The **Issue intake** workflow turns the answer into `flow:ai` or `flow:human`.
-- From phase 5, the triage agent picks up every new issue.
+- The triage agent picks up every new issue, and the developer or researcher follows when the issue qualifies. See `docs/SETUP-AI.md` §6.
 
 ## Day-to-day git (humans)
 

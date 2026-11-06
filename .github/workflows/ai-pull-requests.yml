@@ -1,0 +1,118 @@
+# Reacts to CI on AI pull requests, and to the `ai:review` label on any pull request.
+#
+#   CI green on an ai/* PR  → reviewer agent (once per commit; it records a verdict for the Merge Gate)
+#   CI red on an ai/* PR    → debugger agent, at most 2 automatic attempts, then `ai:needs-human`
+#   `ai:review` added by a person → reviewer agent on any PR (human branches included)
+#
+# Draft PRs and PRs labelled ai:stop or ai:needs-human are left alone.
+# Runs from the default branch (workflow_run / pull_request_target), never from PR code.
+name: AI · pull requests
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: ['ai/**']
+  pull_request_target:
+    types: [labeled]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: ai-pr-${{ github.event.pull_request.head.ref || github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  decide:
+    name: Which agent?
+    if: >-
+      vars.AI_AGENTS != 'off' &&
+      ((github.event_name == 'workflow_run' && contains(fromJSON('["success","failure"]'), github.event.workflow_run.conclusion)) ||
+       (github.event_name == 'pull_request_target' && github.event.label.name == 'ai:review' && github.event.sender.type != 'Bot'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      agent: ${{ steps.decide.outputs.agent }}
+      pr: ${{ steps.decide.outputs.pr }}
+      issue: ${{ steps.decide.outputs.issue }}
+      branch: ${{ steps.decide.outputs.branch }}
+      run_id: ${{ steps.decide.outputs.run_id }}
+      attempt: ${{ steps.decide.outputs.attempt }}
+      trigger: ${{ steps.decide.outputs.trigger }}
+    steps:
+      - id: decide
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const MAX_DEBUG_ATTEMPTS = 2;
+            const run = context.payload.workflow_run;
+            const skip = (why) => { core.notice(`${why} – no agent started.`); core.setOutput('agent', ''); };
+
+            // Find the pull request.
+            let number = context.payload.pull_request?.number ?? run?.pull_requests?.[0]?.number;
+            if (!number && run) {
+              const { data } = await github.rest.pulls.list({ ...context.repo, state: 'open', head: `${context.repo.owner}:${run.head_branch}` });
+              number = data[0]?.number;
+            }
+            if (!number) return skip(`No open pull request for ${run?.head_branch}`);
+
+            const { data: pr } = await github.rest.pulls.get({ ...context.repo, pull_number: number });
+            const labels = pr.labels.map((l) => l.name);
+            const hold = ['ai:stop', 'ai:needs-human'].find((l) => labels.includes(l));
+
+            if (pr.state !== 'open') return skip(`PR #${number} is closed`);
+            if (pr.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`) return skip(`PR #${number} comes from a fork`);
+            if (hold) return skip(`PR #${number} is labelled ${hold}`);
+            if (run && pr.draft) return skip(`PR #${number} is a draft`);
+            if (run && pr.head.sha !== run.head_sha) return skip(`PR #${number} has newer commits than this CI run`);
+
+            const issue = (pr.body ?? '').match(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i)?.[1] ?? '';
+            core.setOutput('pr', String(number));
+            core.setOutput('issue', issue);
+            core.setOutput('branch', pr.head.ref);
+
+            if (run?.conclusion === 'failure') {
+              const comments = await github.paginate(github.rest.issues.listComments, { ...context.repo, issue_number: number, per_page: 100 });
+              const attempts = comments.filter((c) => c.body?.includes('<!-- ai-debugger-attempt -->')).length;
+              if (attempts >= MAX_DEBUG_ATTEMPTS) {
+                await github.rest.issues.addLabels({ ...context.repo, issue_number: number, labels: ['ai:needs-human'] });
+                await github.rest.issues.createComment({
+                  ...context.repo, issue_number: number,
+                  body: `🛑 CI is still failing after ${attempts} debugger attempts, so the AI has stopped. A developer should take a look (comment \`/ai fix <hint>\` to give the debugger another go).`,
+                });
+                return skip(`PR #${number} used all ${MAX_DEBUG_ATTEMPTS} debugger attempts`);
+              }
+              core.setOutput('agent', 'debugger');
+              core.setOutput('run_id', String(run.id));
+              core.setOutput('attempt', String(attempts + 1));
+              core.setOutput('trigger', 'ci');
+              return;
+            }
+
+            // Reviewer: skip if this exact commit already has a verdict.
+            if (run) {
+              const reviews = await github.paginate(github.rest.pulls.listReviews, { ...context.repo, pull_number: number, per_page: 100 });
+              const reviewed = reviews.some((r) => r.body?.includes('ai-verdict') && r.body.includes(pr.head.sha));
+              if (reviewed) return skip(`PR #${number} @ ${pr.head.sha.slice(0, 7)} already has a verdict`);
+            }
+            core.setOutput('agent', 'reviewer');
+            core.setOutput('trigger', run ? 'ci' : 'ai-review-label');
+
+  agent:
+    name: Start
+    needs: decide
+    if: needs.decide.outputs.agent != ''
+    uses: ./.github/workflows/ai-agent.yml
+    secrets: inherit
+    with:
+      agent: ${{ needs.decide.outputs.agent }}
+      pr: ${{ needs.decide.outputs.pr }}
+      issue: ${{ needs.decide.outputs.issue }}
+      branch: ${{ needs.decide.outputs.branch }}
+      run_id: ${{ needs.decide.outputs.run_id }}
+      attempt: ${{ needs.decide.outputs.attempt }}
+      trigger: ${{ needs.decide.outputs.trigger }}
+      actor: ${{ github.event.sender.login }}

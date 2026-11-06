@@ -28,4 +28,14 @@ interface ManagedAgentsGateway
      * @return int how many sessions were updated
      */
     public function refreshRepositoryTokens(string $token): int;
+
+    /**
+     * FugaziByUs sessions that are working right now (not idle, finished or archived).
+     *
+     * @return list<array{id: string, metadata: array<string, string>}>
+     */
+    public function runningSessions(): array;
+
+    /** Stop a session mid-task. It goes idle and keeps its transcript. */
+    public function interruptSession(string $sessionId): void;
 }
