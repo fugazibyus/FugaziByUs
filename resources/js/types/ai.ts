@@ -14,3 +14,16 @@ export type AiStats = {
     }[];
     updatedAt: string | null;
 };
+
+/** One agent on the AI Workflow page, read from agents/<key>/agent.md by AiWorkflowController. */
+export type AgentSummary = {
+    key: string;
+    name: string;
+    description: string;
+    model: string;
+    effort: string;
+    budgetUsd: number;
+    usesWeb: boolean;
+    path: string;
+    prompt: string;
+};
