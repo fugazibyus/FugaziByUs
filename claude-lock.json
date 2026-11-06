@@ -23,9 +23,9 @@
     "./agents/release/agent.md": {
       "kind": "agent",
       "id": "agent_01QyBAbsghSZxn2iuSKfjLcW",
-      "version": "1",
-      "hash": "84c91a8cc6f82df41bde10832a15474b",
-      "remote_hash": "b417060c8e45b7a25ad391a2f8abb68d"
+      "version": "2",
+      "hash": "7b2a0daf0ec212b6d6db03cb0b3738a1",
+      "remote_hash": "c8a091b66f54d69e187b5b2ca4eb60a3"
     },
     "./agents/researcher/agent.md": {
       "kind": "agent",
@@ -44,9 +44,9 @@
     "./agents/triage/agent.md": {
       "kind": "agent",
       "id": "agent_01QMNAJ28YXJGbZjGA6mdvNj",
-      "version": "1",
-      "hash": "9bf7f3257057114cc4ded6baef0023ff",
-      "remote_hash": "472407acea01ecdeb00cc2d249d88595"
+      "version": "2",
+      "hash": "6e9a608aaa45ff6be60e9e2d1605416c",
+      "remote_hash": "08c43d4134ab393af99182b78a0dabd9"
     },
     "./environments/research.yaml": {
       "kind": "environment",

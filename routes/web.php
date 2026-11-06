@@ -3,9 +3,12 @@
 use App\Http\Controllers\Account\AccountController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\VersionController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
+
+Route::get('version', VersionController::class)->name('version');
 
 Route::inertia('ai-workflow', 'AiWorkflow')->name('ai-workflow');
 
