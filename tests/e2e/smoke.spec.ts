@@ -58,3 +58,30 @@ test('the contact form sends a message', async ({ page }) => {
     await page.getByTestId('contact-submit').click();
     await expect(page.getByText('Your message has been sent')).toBeVisible();
 });
+
+test('contact FAQ answers open and close by mouse and keyboard', async ({
+    page,
+}) => {
+    await page.goto('/contact');
+    const faq = page.getByTestId('contact-faq');
+    const questions = faq.getByRole('button');
+    await expect(questions).toHaveCount(4);
+    for (const question of await questions.all()) {
+        await expect(question).toHaveAttribute('aria-expanded', 'false');
+    }
+
+    const question = faq.getByRole('button', { name: 'Who reads my message?' });
+    const answer = faq.getByText('Real people on the FugaziByUs team.');
+    await question.click();
+    await expect(question).toHaveAttribute('aria-expanded', 'true');
+    await expect(answer).toBeVisible();
+    await question.click();
+    await expect(question).toHaveAttribute('aria-expanded', 'false');
+    await expect(answer).toBeHidden();
+
+    await question.focus();
+    await page.keyboard.press('Enter');
+    await expect(answer).toBeVisible();
+    await page.keyboard.press('Space');
+    await expect(answer).toBeHidden();
+});
