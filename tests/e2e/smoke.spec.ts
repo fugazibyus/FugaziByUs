@@ -59,6 +59,27 @@ test('the contact form sends a message', async ({ page }) => {
     await expect(page.getByText('Your message has been sent')).toBeVisible();
 });
 
+test('the contact form marks its required fields', async ({ page }) => {
+    await page.goto('/contact');
+    await expect(page.getByTestId('required-fields-note')).toHaveText(
+        '* Required fields',
+    );
+
+    for (const label of ['Your name', 'Email address', 'Subject', 'Message']) {
+        // The asterisk is hidden from screen readers, so the accessible name stays exact.
+        const field = page.getByRole('textbox', { name: label, exact: true });
+        await expect(field).toHaveAttribute('required');
+        await expect(
+            page.locator(`label[for="${await field.getAttribute('id')}"]`),
+        ).toContainText('*');
+    }
+
+    await expect(page.locator('label[for="website"]')).not.toContainText('*');
+    await expect(page.locator('form').getByTestId('required-mark')).toHaveCount(
+        5,
+    );
+});
+
 test('contact FAQ answers open and close by mouse and keyboard', async ({
     page,
 }) => {
