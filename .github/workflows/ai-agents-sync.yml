@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: ai-agents-sync
@@ -35,6 +36,18 @@ jobs:
         with:
           ref: develop
           persist-credentials: false
+
+      # If an earlier lock PR hasn't been merged yet, its lock file is the true state.
+      # Starting from develop's older copy would make `ant apply` refuse ("edited outside this config").
+      - name: Start from the newest lock file
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ -n "$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$LOCK_BRANCH" --state open --json number --jq '.[].number')" ]]; then
+            git fetch --depth=1 origin "$LOCK_BRANCH"
+            git checkout FETCH_HEAD -- claude-lock.json
+            echo "Using claude-lock.json from the open \`$LOCK_BRANCH\` PR." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Install the ant CLI (checksum-verified)
         run: |
@@ -57,7 +70,7 @@ jobs:
       - name: Did the lock file change?
         id: lock
         run: |
-          if git diff --quiet -- claude-lock.json; then
+          if git diff --quiet HEAD -- claude-lock.json; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "claude-lock.json is already up to date." >> "$GITHUB_STEP_SUMMARY"
           else
@@ -87,6 +100,7 @@ jobs:
           git config user.email "${bot_id}+${APP_SLUG}[bot]@users.noreply.github.com"
 
           git switch -c "$LOCK_BRANCH"
+          git reset -q
           git add claude-lock.json
           git commit -m "Sync claude-lock.json with Anthropic" -m "ant apply ran after ${SOURCE_SHA::7} changed the agent definitions. This records the new agent versions so the next apply starts from the right state."
           git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${LOCK_BRANCH}"
