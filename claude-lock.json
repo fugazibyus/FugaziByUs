@@ -23,9 +23,9 @@
     "./agents/release/agent.md": {
       "kind": "agent",
       "id": "agent_01QyBAbsghSZxn2iuSKfjLcW",
-      "version": "1",
-      "hash": "84c91a8cc6f82df41bde10832a15474b",
-      "remote_hash": "b417060c8e45b7a25ad391a2f8abb68d"
+      "version": "2",
+      "hash": "7b2a0daf0ec212b6d6db03cb0b3738a1",
+      "remote_hash": "c8a091b66f54d69e187b5b2ca4eb60a3"
     },
     "./agents/researcher/agent.md": {
       "kind": "agent",
