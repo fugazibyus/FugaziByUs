@@ -34,7 +34,7 @@ class GateFactsCollector
         return (string) $comment['user']['login'];
     }
 
-    public function merge(int $number, ?string $requestedBy = null): MergeFacts
+    public function merge(int $number, ?string $requestedBy = null, ?string $requestedVia = null): MergeFacts
     {
         $pr = $this->github->pullRequest($number);
         $headSha = (string) $pr['head']['sha'];
@@ -67,11 +67,12 @@ class GateFactsCollector
             optedInBy: $this->optedInBy(array_filter([$number, $issueNumber]), $labels),
             requestedBy: $requestedBy,
             requesterIsDev: $requestedBy !== null && $this->github->isDev($requestedBy),
+            requestedVia: $requestedVia,
             sessions: $this->sessions([(string) ($pr['body'] ?? ''), ...array_map(fn (array $r) => (string) $r['body'], $reviews)]),
         );
     }
 
-    public function deploy(int $number, ?string $requestedBy = null): DeployFacts
+    public function deploy(int $number, ?string $requestedBy = null, ?string $requestedVia = null): DeployFacts
     {
         $pr = $this->github->pullRequest($number);
         $headSha = (string) $pr['head']['sha'];
@@ -109,6 +110,7 @@ class GateFactsCollector
             lastDeploy: $this->github->latestDeployment('production'),
             requestedBy: $requestedBy,
             requesterIsDev: $requestedBy !== null && $this->github->isDev($requestedBy),
+            requestedVia: $requestedVia,
         );
     }
 

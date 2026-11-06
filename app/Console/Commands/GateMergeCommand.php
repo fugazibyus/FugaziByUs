@@ -31,7 +31,8 @@ class GateMergeCommand extends Command
             $requestedBy = $this->option('comment')
                 ? $collector->requesterFromComment($number, (int) $this->option('comment'), 'merge')
                 : ($this->option('requested-by') ?: null);
-            $pr = $collector->merge($number, $requestedBy);
+            $via = $this->option('comment') ? '`/ai merge`' : 'run by hand from the Actions tab';
+            $pr = $collector->merge($number, $requestedBy, $requestedBy !== null ? $via : null);
         } catch (AgentConfigurationException $e) {
             $this->components->error($e->getMessage());
 
@@ -50,6 +51,10 @@ class GateMergeCommand extends Command
         try {
             if ($decision->action() === Decision::MERGE) {
                 $github->merge($number, $pr->headSha, 'squash', "{$pr->title} (#{$number})", GateReport::commitMessage($decision, $pr->issue, $pr->sessions));
+
+                if ($pr->issue !== null) {
+                    $github->removeLabel($pr->issue, 'ai:pr-open');
+                }
 
                 if ($pr->requestedBy === null && str_starts_with($pr->head, 'ai/')) {
                     foreach (array_filter([$number, $pr->issue]) as $target) {

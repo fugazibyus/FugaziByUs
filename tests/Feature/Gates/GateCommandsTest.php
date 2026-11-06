@@ -45,6 +45,7 @@ class GateCommandsTest extends TestCase
             'POST /issues/6/labels' => [],
             'POST /issues/2/labels' => [],
             'POST /issues/6/comments' => ['id' => 99],
+            'DELETE /issues/2/labels/ai:pr-open' => [],
         ];
 
         Http::preventStrayRequests();
@@ -53,7 +54,7 @@ class GateCommandsTest extends TestCase
                 return Http::response(['state' => str_ends_with($request->url(), '/sgoodwin10') ? 'active' : null], str_ends_with($request->url(), '/sgoodwin10') ? 200 : 404);
             }
 
-            $path = (string) parse_url(str_replace(self::REPO, '', $request->url()), PHP_URL_PATH);
+            $path = rawurldecode((string) parse_url(str_replace(self::REPO, '', $request->url()), PHP_URL_PATH));
             $key = $request->method().' '.$path;
 
             return array_key_exists($key, $this->github)
@@ -78,6 +79,7 @@ class GateCommandsTest extends TestCase
 
         Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/issues/6/labels') && $r['labels'] === ['ai:automerged']);
         Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/issues/2/labels') && $r['labels'] === ['ai:automerged']);
+        Http::assertSent(fn (Request $r) => $r->method() === 'DELETE' && str_ends_with($r->url(), '/issues/2/labels/ai%3Apr-open'));
         Http::assertSent(fn (Request $r) => $r->method() === 'POST' && str_ends_with($r->url(), '/issues/6/comments')
             && str_contains($r['body'], 'Merge Gate: ✅ Merging')
             && str_contains($r['body'], 'Issue #2 was reported by a developer.'));
@@ -118,11 +120,18 @@ class GateCommandsTest extends TestCase
         ];
 
         $this->artisan('gate:merge', ['pr' => 6, '--comment' => 555])
-            ->expectsOutputToContain('Merge Gate decision: merge')
+            ->expectsOutputToContain('Requested by @sgoodwin10, a developer (`/ai merge`).')
             ->assertSuccessful();
 
         Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/pulls/6/merge'));
         Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/labels'));
+    }
+
+    public function test_a_manual_run_from_the_actions_tab_says_so(): void
+    {
+        $this->artisan('gate:merge', ['pr' => 6, '--requested-by' => 'sgoodwin10', '--dry-run' => true])
+            ->expectsOutputToContain('Requested by @sgoodwin10, a developer (run by hand from the Actions tab).')
+            ->assertSuccessful();
     }
 
     public function test_a_request_must_be_proven_by_a_recent_comment_on_the_same_pull_request(): void

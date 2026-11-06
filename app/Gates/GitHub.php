@@ -162,6 +162,16 @@ class GitHub
         $this->http()->post($this->path("/issues/{$number}/labels"), ['labels' => $labels])->throw();
     }
 
+    /** Remove a label; it's fine if it isn't there. */
+    public function removeLabel(int $number, string $label): void
+    {
+        $response = $this->http()->delete($this->path("/issues/{$number}/labels/".rawurlencode($label)));
+
+        if ($response->failed() && $response->status() !== 404) {
+            $response->throw();
+        }
+    }
+
     /** Create the gate's comment on a PR, or edit it if it's already there. */
     public function upsertComment(int $number, string $marker, string $body): void
     {
