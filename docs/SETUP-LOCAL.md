@@ -10,18 +10,17 @@ brew install gh                   # GitHub CLI
 gh auth login                     # pick GitHub.com → HTTPS → login with browser
 ```
 
-Later phases also use these (install now or when we get there):
+For working with the AI agents, also install:
 
 ```bash
 brew install anthropics/tap/ant   # Anthropic CLI – manages the AI agents
-brew install doctl                # DigitalOcean CLI – staging/prod
 ```
+
+Nothing else is needed for staging and production: GitHub Actions deploys them (docs/SETUP-HOSTED.md).
 
 Claude Code is already installed on this Mac (`claude --version`).
 
 ## 2. Get the code
-
-If you're starting from GitHub (once the repo exists):
 
 ```bash
 gh repo clone fugazibyus/FugaziByUs ~/Sites/FugaziByUs

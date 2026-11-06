@@ -283,7 +283,7 @@ Slack and GitHub talk to each other directly; the website isn't in the middle (s
 |        | Local                        | Staging                                | Production                                                      |
 | ------ | ---------------------------- | -------------------------------------- | --------------------------------------------------------------- |
 | Host   | Docker Desktop (Mac)         | Droplet 2 GB (~$12/mo)                 | Droplet 2 GB (~$12/mo)                                          |
-| URL    | `http://localhost:8080`      | `https://staging.<ip>.sslip.io`        | `https://<ip>.sslip.io` → real domain later                     |
+| URL    | `http://localhost:8090`      | `https://staging.<ip>.sslip.io`        | `https://<ip>.sslip.io` → real domain later                     |
 | DB     | MySQL container (port 33060) | MySQL container + volume, nightly dump | Same + DO weekly backups                                        |
 | Deploy | —                            | Auto on merge to `develop`             | Deploy Gate: AI-shipped when eligible, otherwise a dev approves |
 
@@ -300,7 +300,7 @@ Rough running cost: about $29/month in DigitalOcean (2 Droplets + registry). Ant
 | #   | Phase                                                                                                                                                                                                                      | Who                                | Output                                                    |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------- |
 | 0   | **Accounts & keys** (checklist in §11)                                                                                                                                                                                     | You (I give exact steps)           | Anthropic, GitHub org/bot, DO, Slack ready                |
-| 1   | Scaffold Laravel + Inertia/Vue + Docker local env + Makefile                                                                                                                                                               | Me                                 | `make up` → site on localhost:8080                        |
+| 1   | Scaffold Laravel + Inertia/Vue + Docker local env + Makefile                                                                                                                                                               | Me                                 | `make up` → site on localhost:8090                        |
 | 2   | Site: layout/menu, toasts, auth modals, account, contact, landing                                                                                                                                                          | Me                                 | Working site + PHPUnit tests                              |
 | 3   | GitHub: repo push, rulesets, CODEOWNERS, labels, issue forms, PR template, CI, guardrails                                                                                                                                  | Me (via `gh`) + you (org settings) | Protected repo with green CI                              |
 | 4   | Agents: `agents/*`, environment, vault, `ant apply`, `ai:start` command, local Claude Code sync + slash commands, CLAUDE.md, skills                                                                                        | Me                                 | Agents live in your Anthropic workspace; runnable locally |
@@ -316,7 +316,7 @@ Rough running cost: about $29/month in DigitalOcean (2 Droplets + registry). Ant
 
 ## 11. Setup checklist (detailed step-by-step goes in `docs/SETUP-*.md`)
 
-**Your Mac:** Docker Desktop, Homebrew, `gh` (GitHub CLI), `ant` (Anthropic CLI: `brew install anthropics/tap/ant`), Claude Code, `doctl` (DigitalOcean CLI). Optional: Node LTS for running Vite outside Docker.
+**Your Mac:** Docker Desktop, Homebrew, `gh` (GitHub CLI), `ant` (Anthropic CLI: `brew install anthropics/tap/ant`), Claude Code. Optional: Node LTS for running Vite outside Docker.
 
 **Anthropic Console**
 
