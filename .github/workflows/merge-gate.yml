@@ -1,0 +1,121 @@
+# Merge Gate: lets the AI merge a pull request into develop when every rule in
+# app/Gates/MergePolicy.php passes. Otherwise it explains why and a developer merges.
+#
+# It acts as the "Fugazi Merge Gate" GitHub App, the only identity on the branch rules'
+# bypass list. The agents never get this App's key; they can only ask for a check.
+#
+# Checks AI branches (ai/*) and the agent lock-file PR automatically, whenever something that
+# matters changes: CI finishes, the reviewer posts a verdict, or a label changes.
+# Any other PR is checked only when a developer comments `/ai merge` (ai-commands.yml).
+name: Merge Gate
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  pull_request_review:
+    types: [submitted]
+  pull_request_target:
+    types: [labeled, unlabeled, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr: { description: 'Pull request number', type: string, required: true }
+      comment_id: { description: 'Set by `/ai …` comments; leave blank when running by hand (you are then the one asking)', type: string, default: '' }
+
+permissions:
+  contents: read
+
+concurrency:
+  group: merge-gate-${{ inputs.pr || github.event.pull_request.number || github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  find:
+    name: Which pull request?
+    if: >-
+      vars.MERGE_GATE_APP_ID != '' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') &&
+      (github.event_name != 'pull_request_review' || github.event.review.user.login == format('{0}[bot]', vars.AI_GITHUB_APP_SLUG || 'fugazi-ai'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      pull-requests: read
+    outputs:
+      pr: ${{ steps.find.outputs.pr }}
+    steps:
+      - id: find
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          INPUT_PR: ${{ inputs.pr }}
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const skip = (why) => { core.notice(why); core.setOutput('pr', ''); };
+
+            // A developer asked: always check, whatever the branch.
+            if (process.env.INPUT_PR) return core.setOutput('pr', process.env.INPUT_PR);
+
+            let pr = context.payload.pull_request;
+            if (!pr && run) {
+              const number = run.pull_requests?.[0]?.number;
+              const { data } = number
+                ? { data: [(await github.rest.pulls.get({ ...context.repo, pull_number: number })).data] }
+                : await github.rest.pulls.list({ ...context.repo, state: 'open', head: `${context.repo.owner}:${run.head_branch}` });
+              pr = data[0];
+            }
+            if (!pr) return skip('No open pull request.');
+            if (pr.base.ref !== 'develop') return skip(`#${pr.number} targets ${pr.base.ref}; release PRs go through the Deploy Gate.`);
+
+            // Only AI branches and the lock-file PR are checked automatically.
+            if (!pr.head.ref.startsWith('ai/') && pr.head.ref !== 'chore/sync-claude-lock') {
+              return skip(`#${pr.number} is a human branch; a developer can comment /ai merge.`);
+            }
+            core.setOutput('pr', String(pr.number));
+
+  gate:
+    name: Merge Gate
+    needs: find
+    if: needs.find.outputs.pr != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+      - name: Composer cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ hashFiles('composer.lock') }}
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Token for the Fugazi Merge Gate App
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.MERGE_GATE_APP_ID }}
+          private-key: ${{ secrets.MERGE_GATE_APP_PRIVATE_KEY }}
+      - name: Check the rules and act
+        env:
+          GATE_GITHUB_TOKEN: ${{ steps.app.outputs.token }}
+          MERGE_GATE_BOT: ${{ steps.app.outputs.app-slug }}[bot]
+          AI_GITHUB_APP_BOT: ${{ vars.AI_GITHUB_APP_SLUG || 'fugazi-ai' }}[bot]
+          AI_AUTOMERGE_MODE: ${{ vars.AI_AUTOMERGE_MODE }}
+          AI_MAX_AUTOMERGE_SIZE: ${{ vars.AI_MAX_AUTOMERGE_SIZE }}
+          PR: ${{ needs.find.outputs.pr }}
+          COMMENT_ID: ${{ inputs.comment_id }}
+          # Run by hand from the Actions tab: the person who clicked is the one asking.
+          REQUESTED_BY: ${{ github.event_name == 'workflow_dispatch' && inputs.comment_id == '' && github.actor || '' }}
+          TRIGGER: ${{ github.event_name }}
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+          args=("$PR" "--trigger=$TRIGGER")
+          [[ -n "$COMMENT_ID" ]] && args+=("--comment=$COMMENT_ID")
+          [[ -n "$REQUESTED_BY" ]] && args+=("--requested-by=$REQUESTED_BY")
+          php artisan gate:merge "${args[@]}"
