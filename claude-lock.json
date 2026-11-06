@@ -44,9 +44,9 @@
     "./agents/triage/agent.md": {
       "kind": "agent",
       "id": "agent_01QMNAJ28YXJGbZjGA6mdvNj",
-      "version": "1",
-      "hash": "9bf7f3257057114cc4ded6baef0023ff",
-      "remote_hash": "472407acea01ecdeb00cc2d249d88595"
+      "version": "2",
+      "hash": "6e9a608aaa45ff6be60e9e2d1605416c",
+      "remote_hash": "08c43d4134ab393af99182b78a0dabd9"
     },
     "./environments/research.yaml": {
       "kind": "environment",
