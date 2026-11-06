@@ -392,12 +392,14 @@ Full guide: [docs/SETUP-HOSTED.md](docs/SETUP-HOSTED.md).
 
 ## Documentation
 
-| Doc                                          | Covers                                                             |
-| -------------------------------------------- | ------------------------------------------------------------------ |
-| [CLAUDE.md](CLAUDE.md)                       | Rules every developer and agent follows                            |
-| [docs/PLAN.md](docs/PLAN.md)                 | The full design: architecture, agents, labels, gates, Slack, site  |
-| [docs/SETUP-LOCAL.md](docs/SETUP-LOCAL.md)   | Local Docker setup and troubleshooting                             |
-| [docs/SETUP-GITHUB.md](docs/SETUP-GITHUB.md) | Repo rules, labels, issue forms, PR checks                         |
-| [docs/SETUP-AI.md](docs/SETUP-AI.md)         | Anthropic workspace, GitHub Apps, agent automation, gates, metrics |
-| [docs/SETUP-SLACK.md](docs/SETUP-SLACK.md)   | Slack channels, GitHub app, AI bot, kill switch                    |
-| [docs/SETUP-HOSTED.md](docs/SETUP-HOSTED.md) | DigitalOcean staging and production, deploys, rollback             |
+| Doc                                          | Covers                                                                |
+| -------------------------------------------- | --------------------------------------------------------------------- |
+| [CLAUDE.md](CLAUDE.md)                       | Rules every developer and agent follows                               |
+| [docs/PLAN.md](docs/PLAN.md)                 | The full design: architecture, agents, labels, gates, Slack, site     |
+| [docs/SETUP-LOCAL.md](docs/SETUP-LOCAL.md)   | Local Docker setup and troubleshooting                                |
+| [docs/SETUP-GITHUB.md](docs/SETUP-GITHUB.md) | Repo rules, labels, issue forms, PR checks                            |
+| [docs/SETUP-AI.md](docs/SETUP-AI.md)         | Anthropic workspace, GitHub Apps, agent automation, gates, metrics    |
+| [docs/SETUP-SLACK.md](docs/SETUP-SLACK.md)   | Slack channels, GitHub app, AI bot, kill switch                       |
+| [docs/SETUP-HOSTED.md](docs/SETUP-HOSTED.md) | DigitalOcean staging and production, deploys, rollback                |
+| [docs/RUNBOOK.md](docs/RUNBOOK.md)           | When something needs a person: failed deploys, stuck agents, restores |
+| [docs/DEMO-SCRIPT.md](docs/DEMO-SCRIPT.md)   | A 30-minute stakeholder demo, with checklists and fallbacks           |
