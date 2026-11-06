@@ -12,9 +12,13 @@ use App\Support\AiStats;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Http\Kernel as HttpKernel;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Route;
 use StandardWebhooks\Webhook;
 use Tests\TestCase;
 
@@ -154,6 +158,16 @@ class AgentMetricsTest extends TestCase
         $this->postJson('/webhooks/anthropic', ['data' => ['type' => 'session.created', 'id' => 'sesn_x']])->assertStatus(400);
 
         Queue::assertNothingPushed();
+    }
+
+    // Tests never enforce CSRF, so a posted request can't catch this: check the route itself.
+    public function test_the_webhook_skips_csrf_protection(): void
+    {
+        $this->app->make(HttpKernel::class); // registers the `web` group with the router
+        $route = Route::getRoutes()->getByName('webhooks.anthropic');
+
+        $this->assertContains(ThrottleRequests::class.':120,1', Route::gatherRouteMiddleware($route));
+        $this->assertNotContains(PreventRequestForgery::class, Route::gatherRouteMiddleware($route));
     }
 
     public function test_the_job_ignores_sessions_from_other_projects(): void
