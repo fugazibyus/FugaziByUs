@@ -19,7 +19,7 @@ export const overviewFacts = [
     { value: '6', label: 'specialist agents, each with one job' },
     { value: '2', label: 'policy gates decide what merges and ships' },
     { value: '$25', label: 'daily spending cap, plus a budget per run' },
-    { value: '1', label: 'switch hands everything back to people' },
+    { value: '1', label: 'switch hands merging and shipping back to people' },
 ];
 
 export const workflowSteps: {
@@ -456,7 +456,7 @@ export const faq: { role: string; questions: { q: string; a: string }[] }[] = [
             },
             {
                 q: 'How do we stop it?',
-                a: 'One switch, AI · pause and resume in GitHub Actions, works from a phone and returns everything to people.',
+                a: 'AI · pause and resume in GitHub Actions, which works from a phone, stops the AI merging and deploying, so people decide everything that lands. Setting AI_AGENTS to off stops the agents altogether.',
             },
         ],
     },

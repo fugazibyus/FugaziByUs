@@ -274,7 +274,8 @@ const activeTitle = (id: SectionId) =>
                 <h3 class="mt-10 text-lg font-semibold">The switches</h3>
                 <p class="mt-1 text-sm text-muted-foreground">
                     Repository variables in GitHub. AI · pause and resume in
-                    Actions flips them all at once, from a phone if needed.
+                    Actions turns AI merging and production deploys off in one
+                    go, from a phone if needed.
                 </p>
                 <DefinitionList
                     :rows="switches"
