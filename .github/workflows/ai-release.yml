@@ -1,0 +1,55 @@
+# Asks the release agent to open the release PR develop → main, with release notes.
+# Runs Monday–Thursday morning (production deploys never start on Fridays or weekends),
+# by hand from the Actions tab, or with `/ai release` in any comment.
+# Skips when develop has nothing new or a release PR is already open.
+name: AI · release
+
+on:
+  schedule:
+    - cron: '0 7 * * 1-4' # 07:00 UTC, Mon–Thu
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: ai-release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Anything to release?
+    if: vars.AI_AGENTS != 'off'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      release: ${{ steps.check.outputs.release }}
+    steps:
+      - id: check
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { data: diff } = await github.rest.repos.compareCommits({ ...context.repo, base: 'main', head: 'develop' });
+            const { data: open } = await github.rest.pulls.list({ ...context.repo, state: 'open', base: 'main', head: `${context.repo.owner}:develop` });
+            if (diff.ahead_by === 0) {
+              core.notice('develop has nothing that main does not – no release today.');
+              core.setOutput('release', 'no');
+            } else if (open.length > 0) {
+              core.notice(`Release PR #${open[0].number} is already open.`);
+              core.setOutput('release', 'no');
+            } else {
+              core.notice(`${diff.ahead_by} commit(s) on develop are waiting to ship.`);
+              core.setOutput('release', 'yes');
+            }
+
+  agent:
+    name: Start
+    needs: check
+    if: needs.check.outputs.release == 'yes'
+    uses: ./.github/workflows/ai-agent.yml
+    secrets: inherit
+    with:
+      agent: release
+      trigger: ${{ github.event_name == 'schedule' && 'schedule' || 'manual' }}

@@ -1,0 +1,49 @@
+# Agent GitHub tokens last one hour. Every 30 minutes this mints a fresh one and hands it
+# to the vault and to every running agent session, so long runs can keep pushing.
+# (Once production is live, its scheduler does the same; running both is harmless.)
+name: AI · refresh GitHub token
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-token-refresh
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    name: Refresh token
+    if: vars.AI_AGENTS != 'off'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+      - name: Composer cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ hashFiles('composer.lock') }}
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Refresh
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AI_GITHUB_APP_ID: ${{ vars.AI_GITHUB_APP_ID }}
+          AI_GITHUB_APP_PRIVATE_KEY: ${{ secrets.AI_GITHUB_APP_PRIVATE_KEY }}
+          AI_GITHUB_APP_PRIVATE_KEY_PATH: ''
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+          php artisan ai:refresh-github-token

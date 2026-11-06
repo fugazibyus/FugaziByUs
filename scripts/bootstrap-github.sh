@@ -97,6 +97,8 @@ set_var AI_AUTODEPLOY_STAGING on
 set_var AI_AUTODEPLOY_PRODUCTION business-hours
 set_var AI_MAX_AUTOMERGE_SIZE m
 set_var AI_DAILY_BUDGET_USD 25
+set_var AI_MAX_CONCURRENT_SESSIONS 3
+set_var AI_AGENTS on
 
 step "Labels"
 "$ROOT/scripts/bootstrap-labels.sh" "$REPO"

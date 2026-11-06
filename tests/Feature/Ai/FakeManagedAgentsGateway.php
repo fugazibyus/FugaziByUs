@@ -19,6 +19,12 @@ class FakeManagedAgentsGateway implements ManagedAgentsGateway
     /** @var list<string> */
     public array $refreshedWith = [];
 
+    /** @var list<array{id: string, metadata: array<string, string>}> */
+    public array $running = [];
+
+    /** @var list<string> */
+    public array $interrupted = [];
+
     public function __construct(public float $spentToday = 0.0) {}
 
     public function createSession(array $params): SessionHandle
@@ -48,5 +54,15 @@ class FakeManagedAgentsGateway implements ManagedAgentsGateway
         $this->refreshedWith[] = $token;
 
         return count($this->created);
+    }
+
+    public function runningSessions(): array
+    {
+        return $this->running;
+    }
+
+    public function interruptSession(string $sessionId): void
+    {
+        $this->interrupted[] = $sessionId;
     }
 }

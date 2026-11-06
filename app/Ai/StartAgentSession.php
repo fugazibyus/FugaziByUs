@@ -4,6 +4,7 @@ namespace App\Ai;
 
 use App\Ai\Contracts\ManagedAgentsGateway;
 use App\Ai\Exceptions\DailyBudgetExceededException;
+use App\Ai\Exceptions\TooManySessionsException;
 
 /**
  * Starts one Managed Agents session for a task. Used by `php artisan ai:start`
@@ -48,6 +49,7 @@ class StartAgentSession
     {
         $this->plan($task);
         $this->guardDailyBudget();
+        $this->guardConcurrency();
 
         // A fresh one-hour token for this run: it authenticates the repository mount and,
         // through the vault, the GitHub CLI. `ai:refresh-github-token` renews both while it runs.
@@ -78,6 +80,21 @@ class StartAgentSession
                 $spent,
                 $limit,
             ));
+        }
+    }
+
+    private function guardConcurrency(): void
+    {
+        $limit = (int) config('ai.max_concurrent_sessions');
+
+        if ($limit <= 0) {
+            return;
+        }
+
+        $running = count($this->gateway->runningSessions());
+
+        if ($running >= $limit) {
+            throw new TooManySessionsException("{$running} agents are already working (limit {$limit}). Try again when one finishes, or raise AI_MAX_CONCURRENT_SESSIONS.");
         }
     }
 }

@@ -1,0 +1,100 @@
+# Prompts are code: after a change to agents/, environments/ or vaults/ is merged into develop,
+# this applies it to Anthropic with `ant apply` (each agent gets a new version; running sessions
+# keep their old one).
+#
+# `ant apply` records the new versions in claude-lock.json. Nobody may push to develop directly,
+# so when the lock file changes the Fugazi AI App opens (or updates) a one-file pull request,
+# `chore/sync-claude-lock`, for a developer to merge.
+name: AI · sync agents
+
+on:
+  push:
+    branches: [develop]
+    paths: ['agents/**', 'environments/**', 'vaults/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-agents-sync
+  cancel-in-progress: false
+
+env:
+  ANT_VERSION: 2.6.0
+  ANT_SHA256: 0dedb855c97fbee9934f8d067ddcae0592083615b577d128bc4311a03eb9c1c5 # ant_<version>_linux_amd64.tar.gz
+  LOCK_BRANCH: chore/sync-claude-lock
+
+jobs:
+  apply:
+    name: ant apply
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: develop
+          persist-credentials: false
+
+      - name: Install the ant CLI (checksum-verified)
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/ant.tar.gz" \
+            "https://github.com/anthropics/anthropic-cli/releases/download/v${ANT_VERSION}/ant_${ANT_VERSION}_linux_amd64.tar.gz"
+          echo "${ANT_SHA256}  $RUNNER_TEMP/ant.tar.gz" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/ant" && tar -xzf "$RUNNER_TEMP/ant.tar.gz" -C "$RUNNER_TEMP/ant"
+          echo "$RUNNER_TEMP/ant" >> "$GITHUB_PATH"
+
+      - name: Plan
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: ant apply --dry-run | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: ant apply --yes
+
+      - name: Did the lock file change?
+        id: lock
+        run: |
+          if git diff --quiet -- claude-lock.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "claude-lock.json is already up to date." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --stat -- claude-lock.json
+          fi
+
+      - name: GitHub token for the Fugazi AI App
+        if: steps.lock.outputs.changed == 'true'
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.AI_GITHUB_APP_ID }}
+          private-key: ${{ secrets.AI_GITHUB_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Open or update the lock file pull request
+        if: steps.lock.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          bot_id=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${bot_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+
+          git switch -c "$LOCK_BRANCH"
+          git add claude-lock.json
+          git commit -m "Sync claude-lock.json with Anthropic" -m "ant apply ran after ${SOURCE_SHA::7} changed the agent definitions. This records the new agent versions so the next apply starts from the right state."
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${LOCK_BRANCH}"
+
+          if [[ -z "$(gh pr list --head "$LOCK_BRANCH" --state open --json number --jq '.[].number')" ]]; then
+            gh pr create --base develop --head "$LOCK_BRANCH" \
+              --title "Sync claude-lock.json with Anthropic" \
+              --label "type:chore" \
+              --body "The agent definitions changed in ${SOURCE_SHA::7} and \`ant apply\` has already updated them in Anthropic. This PR only records the new versions in \`claude-lock.json\`. Merge it so the next \`ant apply\` starts from the right state."
+          fi
+          echo "Lock file PR updated on \`$LOCK_BRANCH\`." >> "$GITHUB_STEP_SUMMARY"

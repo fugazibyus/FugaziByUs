@@ -135,4 +135,29 @@ class AnthropicManagedAgentsGateway implements ManagedAgentsGateway
 
         return $updated;
     }
+
+    public function runningSessions(): array
+    {
+        $running = [];
+        $page = $this->client->beta->sessions->list(
+            createdAtGte: CarbonImmutable::now('UTC')->subDay(),
+            statuses: ['running', 'rescheduling'],
+            limit: 100,
+        );
+
+        foreach ($page->pagingEachItem() as $session) {
+            $metadata = array_map(strval(...), $session->metadata ?? []);
+
+            if (($metadata['app'] ?? null) === 'fugazibyus') {
+                $running[] = ['id' => $session->id, 'metadata' => $metadata];
+            }
+        }
+
+        return $running;
+    }
+
+    public function interruptSession(string $sessionId): void
+    {
+        $this->client->beta->sessions->events->send($sessionId, events: [['type' => 'user.interrupt']]);
+    }
 }

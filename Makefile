@@ -109,9 +109,12 @@ ai-run: ## Start a cloud agent: make ai-run agent=developer issue=12 [pr=34 bran
 		$(if $(issue),--issue=$(issue)) $(if $(pr),--pr=$(pr)) $(if $(branch),--branch=$(branch)) \
 		$(if $(msg),--message="$(msg)") --trigger=local --actor=$(shell git config user.name | tr ' ' '-')
 
+ai-stop: ## Kill switch: make ai-stop issue=12 | pr=34 | all=1
+	$(EXEC) php artisan ai:stop $(if $(issue),--issue=$(issue)) $(if $(pr),--pr=$(pr)) $(if $(all),--all)
+
 ## —— Help —————————————————————————————————————————————————
 help:
 	@grep -hE '(^[a-zA-Z_-]+:.*?## .*$$)|(^## )' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; /^## /{printf "\n\033[33m%s\033[0m\n", substr($$0, 4); next} {printf "  \033[32m%-10s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: setup up down restart build ps logs shell db-shell artisan migrate fresh composer npm assets test lint check e2e ai-agents ai-sync ai-plan ai-apply ai-github-token ai-run help
+.PHONY: setup up down restart build ps logs shell db-shell artisan migrate fresh composer npm assets test lint check e2e ai-agents ai-sync ai-plan ai-apply ai-github-token ai-run ai-stop help

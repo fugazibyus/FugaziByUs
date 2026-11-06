@@ -129,6 +129,40 @@ class AiStartCommandTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_the_concurrency_limit_holds_new_sessions_back(): void
+    {
+        config(['ai.max_concurrent_sessions' => 2]);
+        $this->gateway->running = [
+            ['id' => 'sesn_a', 'metadata' => ['app' => 'fugazibyus', 'agent' => 'developer', 'issue' => '4']],
+            ['id' => 'sesn_b', 'metadata' => ['app' => 'fugazibyus', 'agent' => 'reviewer', 'pr' => '9']],
+        ];
+
+        $this->artisan('ai:start', ['agent' => 'triage', '--issue' => 3])
+            ->expectsOutputToContain('2 agents are already working')
+            ->assertExitCode(3);
+
+        $this->assertSame([], $this->gateway->created);
+    }
+
+    public function test_ai_stop_interrupts_only_the_matching_sessions(): void
+    {
+        $this->gateway->running = [
+            ['id' => 'sesn_dev', 'metadata' => ['app' => 'fugazibyus', 'agent' => 'developer', 'issue' => '4']],
+            ['id' => 'sesn_fix', 'metadata' => ['app' => 'fugazibyus', 'agent' => 'debugger', 'pr' => '9']],
+            ['id' => 'sesn_other', 'metadata' => ['app' => 'fugazibyus', 'agent' => 'developer', 'issue' => '40']],
+        ];
+
+        $this->artisan('ai:stop', ['--issue' => 4, '--pr' => 9])
+            ->expectsOutputToContain('Stopped 2 agent session(s)')
+            ->assertSuccessful();
+        $this->assertSame(['sesn_dev', 'sesn_fix'], $this->gateway->interrupted);
+
+        $this->artisan('ai:stop')->assertExitCode(2);
+
+        $this->artisan('ai:stop', ['--all' => true])->assertSuccessful();
+        $this->assertCount(5, $this->gateway->interrupted);
+    }
+
     public function test_unknown_agents_and_a_missing_github_app_fail_clearly(): void
     {
         $this->artisan('ai:start', ['agent' => 'hacker'])
