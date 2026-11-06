@@ -3,6 +3,7 @@ import { Form, Head, Link, usePage } from '@inertiajs/vue3';
 import { ChevronDown, Clock, Mail, MessageSquareText } from '@lucide/vue';
 import { computed } from 'vue';
 import InputError from '@/components/InputError.vue';
+import RequiredMark from '@/components/RequiredMark.vue';
 import { Button } from '@/components/ui/button';
 import {
     Collapsible,
@@ -113,9 +114,18 @@ const knownName = computed(() =>
                     class="grid gap-5"
                     v-slot="{ errors, processing }"
                 >
+                    <p
+                        class="text-sm text-muted-foreground"
+                        data-test="required-fields-note"
+                    >
+                        <RequiredMark /> Required fields
+                    </p>
+
                     <div class="grid gap-5 sm:grid-cols-2">
                         <div class="grid gap-2">
-                            <Label for="name">Your name</Label>
+                            <Label for="name" class="gap-1"
+                                >Your name <RequiredMark
+                            /></Label>
                             <Input
                                 id="name"
                                 name="name"
@@ -128,7 +138,9 @@ const knownName = computed(() =>
                             <InputError :message="errors.name" />
                         </div>
                         <div class="grid gap-2">
-                            <Label for="email">Email address</Label>
+                            <Label for="email" class="gap-1"
+                                >Email address <RequiredMark
+                            /></Label>
                             <Input
                                 id="email"
                                 name="email"
@@ -143,7 +155,9 @@ const knownName = computed(() =>
                     </div>
 
                     <div class="grid gap-2">
-                        <Label for="subject">Subject</Label>
+                        <Label for="subject" class="gap-1"
+                            >Subject <RequiredMark
+                        /></Label>
                         <Input
                             id="subject"
                             name="subject"
@@ -155,7 +169,9 @@ const knownName = computed(() =>
                     </div>
 
                     <div class="grid gap-2">
-                        <Label for="message">Message</Label>
+                        <Label for="message" class="gap-1"
+                            >Message <RequiredMark
+                        /></Label>
                         <Textarea
                             id="message"
                             name="message"
