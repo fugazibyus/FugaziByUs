@@ -42,6 +42,7 @@ jobs:
       run_id: ${{ steps.decide.outputs.run_id }}
       attempt: ${{ steps.decide.outputs.attempt }}
       trigger: ${{ steps.decide.outputs.trigger }}
+      alert: ${{ steps.decide.outputs.alert }}
     steps:
       - id: decide
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -83,6 +84,7 @@ jobs:
                   ...context.repo, issue_number: number,
                   body: `🛑 CI is still failing after ${attempts} debugger attempts, so the AI has stopped. A developer should take a look (comment \`/ai fix <hint>\` to give the debugger another go).`,
                 });
+                core.setOutput('alert', `🛑 CI is still failing on <${pr.html_url}|PR #${number} ${pr.title.replace(/[<>|]/g, '')}> after ${attempts} debugger attempts. The AI has stopped; a developer should take a look.`);
                 return skip(`PR #${number} used all ${MAX_DEBUG_ATTEMPTS} debugger attempts`);
               }
               core.setOutput('agent', 'debugger');
@@ -116,3 +118,22 @@ jobs:
       attempt: ${{ needs.decide.outputs.attempt }}
       trigger: ${{ needs.decide.outputs.trigger }}
       actor: ${{ github.event.sender.login }}
+
+  alert:
+    name: Tell Slack
+    needs: decide
+    if: needs.decide.outputs.alert != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: .github
+      - env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          TEXT: ${{ needs.decide.outputs.alert }}
+          TO: ${{ format('{0} {1}', vars.SLACK_CHANNEL_ALERTS || 'fugazi-alerts', vars.SLACK_ON_DUTY || '') }}
+        run: .github/scripts/slack-alert.sh
+

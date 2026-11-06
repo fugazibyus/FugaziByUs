@@ -57,6 +57,46 @@ final class GateReport
     }
 
     /**
+     * The Slack message for a decision worth announcing: a merge, a refusal, or an error.
+     * (Waiting and branch updates aren't news.)
+     */
+    public static function slack(string $gate, Decision $decision, string $url, string $label, ?string $note = null): ?string
+    {
+        $link = '<'.$url.'|'.str_replace(['<', '>', '|'], '', $label).'>';
+        $failed = implode('', array_map(fn (string $rule) => "\n• ".str_replace('`', '', $rule), array_slice($decision->failed, 0, 5)));
+
+        return match (true) {
+            $note !== null => '⚠️ The '.($gate === 'deploy' ? 'Deploy' : 'Merge')." Gate couldn't act on {$link}: ".str_replace('⚠️ ', '', $note),
+            $decision->action() === Decision::MERGE => $gate === 'deploy'
+                ? "🚀 The Deploy Gate is shipping {$link} to production."
+                : "🟣 The Merge Gate merged {$link} into develop after every check passed.",
+            $decision->action() === Decision::REFUSE => $gate === 'deploy'
+                ? "✋ {$link} needs a developer to ship it:{$failed}"
+                : "👀 {$link} needs a human review. The Merge Gate won't merge it on its own:{$failed}",
+            default => null,
+        };
+    }
+
+    /**
+     * Hand values to later workflow steps (multi-line safe).
+     *
+     * @param  array<string, string>  $values
+     */
+    public static function writeGithubOutput(array $values): void
+    {
+        $file = getenv('GITHUB_OUTPUT');
+
+        if (! $file) {
+            return;
+        }
+
+        foreach ($values as $key => $value) {
+            $delimiter = 'EOF_'.bin2hex(random_bytes(8));
+            file_put_contents($file, "{$key}<<{$delimiter}\n{$value}\n{$delimiter}\n", FILE_APPEND);
+        }
+    }
+
+    /**
      * The squash commit message: the issue it closes, the checks that passed and the agent sessions.
      *
      * @param  list<string>  $sessions

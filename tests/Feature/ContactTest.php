@@ -2,9 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\PostContactMessageToSlack;
 use App\Models\ContactMessage;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -45,6 +49,34 @@ class ContactTest extends TestCase
         $this->assertSame('Hello there', $message->subject);
         $this->assertNull($message->user_id);
         $this->assertNotNull($message->ip_address);
+    }
+
+    public function test_a_message_is_posted_to_the_contact_channel_in_slack(): void
+    {
+        Queue::fake();
+
+        $this->post(route('contact.store'), $this->validData());
+
+        Queue::assertPushed(PostContactMessageToSlack::class);
+
+        config(['services.slack.bot_token' => 'xoxb-test', 'services.slack.contact_channel' => 'fugazi-contact']);
+        Http::fake(['slack.com/api/chat.postMessage' => Http::response(['ok' => true, 'ts' => '1.1'])]);
+
+        (new PostContactMessageToSlack(ContactMessage::sole()))->handle();
+
+        Http::assertSent(fn (Request $r) => $r->hasHeader('Authorization', 'Bearer xoxb-test')
+            && $r['channel'] === 'fugazi-contact'
+            && str_starts_with($r['text'], '📬 *Hello there* from Jane Smith (jane@example.com)'));
+    }
+
+    public function test_without_a_slack_token_nothing_is_posted(): void
+    {
+        config(['services.slack.bot_token' => null]);
+        Http::preventStrayRequests();
+
+        $this->post(route('contact.store'), $this->validData())->assertRedirect(route('contact.show'));
+
+        $this->assertSame(1, ContactMessage::count());
     }
 
     public function test_logged_in_users_are_linked_to_their_message(): void

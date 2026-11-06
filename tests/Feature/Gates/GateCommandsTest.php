@@ -85,6 +85,29 @@ class GateCommandsTest extends TestCase
             && str_contains($r['body'], 'Issue #2 was reported by a developer.'));
     }
 
+    public function test_slack_hears_about_a_decision_once(): void
+    {
+        $output = tempnam(sys_get_temp_dir(), 'gh-output');
+        putenv("GITHUB_OUTPUT={$output}");
+
+        try {
+            $this->artisan('gate:merge', ['pr' => 6])->assertSuccessful();
+            $this->assertStringContainsString('🟣 The Merge Gate merged <https://github.com/fugazibyus/FugaziByUs/pull/6|PR #6 Add a short FAQ under the contact form> into develop', (string) file_get_contents($output));
+
+            // The gate checks again with the same result: the comment only gets a new footer, Slack hears nothing.
+            file_put_contents($output, '');
+            $sent = collect(Http::recorded())->first(fn ($pair) => str_ends_with($pair[0]->url(), '/issues/6/comments') && $pair[0]->method() === 'POST');
+            $this->github['GET /issues/6/comments'] = [['id' => 99, 'user' => ['type' => 'Bot'], 'body' => str_replace('Checked commit', 'Checked earlier commit', $sent[0]['body'])]];
+            $this->github['PATCH /issues/comments/99'] = [];
+
+            $this->artisan('gate:merge', ['pr' => 6])->assertSuccessful();
+            $this->assertMatchesRegularExpression('/slack<<(EOF_\w+)\n\n\1/', (string) file_get_contents($output));
+        } finally {
+            putenv('GITHUB_OUTPUT');
+            @unlink($output);
+        }
+    }
+
     public function test_the_merge_gate_explains_a_refusal_and_merges_nothing(): void
     {
         $this->github['GET /pulls/6/reviews'][0]['body'] = str_replace('"approve"', '"request-changes"', $this->github['GET /pulls/6/reviews'][0]['body']);

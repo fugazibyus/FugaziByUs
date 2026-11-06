@@ -172,8 +172,13 @@ class GitHub
         }
     }
 
-    /** Create the gate's comment on a PR, or edit it if it's already there. */
-    public function upsertComment(int $number, string $marker, string $body): void
+    /**
+     * Create the gate's comment on a PR, or edit it if it's already there.
+     *
+     * @return bool whether the decision changed (ignoring the "checked at" footer), so the
+     *              workflow only tells Slack about news, not about every re-check
+     */
+    public function upsertComment(int $number, string $marker, string $body): bool
     {
         $existing = collect($this->paginate("/issues/{$number}/comments"))
             ->first(fn (array $c) => ($c['user']['type'] ?? null) === 'Bot' && str_contains((string) $c['body'], $marker));
@@ -183,6 +188,10 @@ class GitHub
             : $this->http()->post($this->path("/issues/{$number}/comments"), ['body' => $body]);
 
         $request->throw();
+
+        $withoutFooter = fn (string $text) => trim((string) preg_replace('#<sub>.*?</sub>#s', '', $text));
+
+        return $existing === null || $withoutFooter((string) $existing['body']) !== $withoutFooter($body);
     }
 
     /**

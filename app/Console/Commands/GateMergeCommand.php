@@ -69,8 +69,13 @@ class GateMergeCommand extends Command
             $this->components->error($note);
         }
 
-        $github->upsertComment($number, GateReport::MERGE_MARKER, GateReport::render('merge', $decision, $pr->headSha, (string) $this->option('trigger'), $note));
-        $this->writeOutput($note === null ? $decision->action() : 'error');
+        $changed = $github->upsertComment($number, GateReport::MERGE_MARKER, GateReport::render('merge', $decision, $pr->headSha, (string) $this->option('trigger'), $note));
+        $url = 'https://github.com/'.config('gates.repository')."/pull/{$number}";
+
+        GateReport::writeGithubOutput([
+            'action' => $note === null ? $decision->action() : 'error',
+            'slack' => $changed ? (string) GateReport::slack('merge', $decision, $url, "PR #{$number} {$pr->title}", $note) : '',
+        ]);
 
         return $note === null ? self::SUCCESS : self::FAILURE;
     }
@@ -83,13 +88,6 @@ class GateMergeCommand extends Command
             foreach ($rules as $rule) {
                 $this->line("  {$icon} {$rule}");
             }
-        }
-    }
-
-    private function writeOutput(string $action): void
-    {
-        if ($output = getenv('GITHUB_OUTPUT')) {
-            file_put_contents($output, "action={$action}\n", FILE_APPEND);
         }
     }
 }
