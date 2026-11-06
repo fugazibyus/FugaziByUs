@@ -18,8 +18,11 @@ x-app: &app
     # switch tests to an in-memory SQLite database without real env vars overriding it.
     environment:
         XDEBUG_MODE: ${XDEBUG_MODE:-off}
+        # Lets `php artisan ai:*` use your `ant auth login` profile – no API key on disk.
+        ANTHROPIC_CONFIG_DIR: /var/www/.anthropic
     volumes:
         - .:/var/www/html
+        - ${HOME}/.config/anthropic:/var/www/.anthropic
         # Linux node_modules live in a volume so they never clash with macOS binaries.
         - node_modules:/var/www/html/node_modules
     extra_hosts:

@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "origin": {
+    "base_url": "https://api.anthropic.com",
+    "organization_id": "b451d3c6-aee0-4700-a260-46d9c68edd0f",
+    "workspace_id": "wrkspc_01DEn4hN26qUxWFjG857Gb2i"
+  },
+  "resources": {
+    "./agents/debugger/agent.md": {
+      "kind": "agent",
+      "id": "agent_019Xv2uWiNZHqDYjyykzYAGf",
+      "version": "1",
+      "hash": "7f7b543def7cfcbca1d17cc6553f8127",
+      "remote_hash": "f09cebbfd5b4497c129ee0f9c8e49134"
+    },
+    "./agents/developer/agent.md": {
+      "kind": "agent",
+      "id": "agent_01PysxWWPZMa4gwRCfspZQXE",
+      "version": "1",
+      "hash": "1f388f1d01c169c72cb97372ec6edb27",
+      "remote_hash": "7043c9056b9deeecdabc2a556b85dca2"
+    },
+    "./agents/release/agent.md": {
+      "kind": "agent",
+      "id": "agent_01QyBAbsghSZxn2iuSKfjLcW",
+      "version": "1",
+      "hash": "84c91a8cc6f82df41bde10832a15474b",
+      "remote_hash": "b417060c8e45b7a25ad391a2f8abb68d"
+    },
+    "./agents/researcher/agent.md": {
+      "kind": "agent",
+      "id": "agent_01TKFna81XV5gHygCS9Yrhva",
+      "version": "1",
+      "hash": "27d0abaddf93e7fc1bca9b7de13e68ff",
+      "remote_hash": "451e01bb2579be7eb42ab43f411163d1"
+    },
+    "./agents/reviewer/agent.md": {
+      "kind": "agent",
+      "id": "agent_01HK8JPHAEJqeFbZYzfJ5FsN",
+      "version": "1",
+      "hash": "bf3de58a607b423c60fad10a436f86dd",
+      "remote_hash": "c2c251eb685ad93cf2bd7fb4788e72f0"
+    },
+    "./agents/triage/agent.md": {
+      "kind": "agent",
+      "id": "agent_01QMNAJ28YXJGbZjGA6mdvNj",
+      "version": "1",
+      "hash": "9bf7f3257057114cc4ded6baef0023ff",
+      "remote_hash": "472407acea01ecdeb00cc2d249d88595"
+    },
+    "./environments/research.yaml": {
+      "kind": "environment",
+      "id": "env_01DGeF2FNHN98EyFTqyCRQTQ",
+      "hash": "435d10994f611d60134d736f17c67abf",
+      "remote_hash": "b64cada0b4961a5afcbb77d42bd510af"
+    },
+    "./environments/sandbox.yaml": {
+      "kind": "environment",
+      "id": "env_01792tsSJCmmf8j8vfivdiLB",
+      "hash": "0af8a946cbb643659346b040e3183b4a",
+      "remote_hash": "227feefe4dbd032094f4187079e4f82a"
+    },
+    "./vaults/github.yaml": {
+      "kind": "vault",
+      "id": "vlt_011CgkiXpeJSuEAAoBguUoRA",
+      "hash": "6e201eb2bb196419ebea5ac51a7a556f",
+      "remote_hash": "6e201eb2bb196419ebea5ac51a7a556f"
+    }
+  }
+}

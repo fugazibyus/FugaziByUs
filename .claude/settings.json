@@ -1,0 +1,31 @@
+{
+    "$schema": "https://json.schemastore.org/claude-code-settings.json",
+    "permissions": {
+        "deny": [
+            "Read(./.env)",
+            "Read(./.env.production)",
+            "Read(./.env.staging)",
+            "Read(./.env.backup)",
+            "Bash(git push --force:*)",
+            "Bash(git push -f:*)",
+            "Bash(git push origin main:*)",
+            "Bash(git push origin develop:*)",
+            "Bash(gh pr merge:*)",
+            "Bash(ant apply --yes:*)",
+            "Bash(ant apply --force:*)",
+            "Bash(ant apply --prune:*)"
+        ],
+        "allow": [
+            "Bash(make test:*)",
+            "Bash(make check:*)",
+            "Bash(make lint:*)",
+            "Bash(git status:*)",
+            "Bash(git diff:*)",
+            "Bash(git log:*)",
+            "Bash(gh issue view:*)",
+            "Bash(gh pr view:*)",
+            "Bash(gh pr diff:*)",
+            "Bash(gh pr checks:*)"
+        ]
+    }
+}

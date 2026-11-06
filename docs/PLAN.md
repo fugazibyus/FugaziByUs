@@ -130,7 +130,7 @@ All agents default to `claude-opus-5-5`. The model is one line in each file's fr
 | `hotfix/<slug>`                                                      | Humans    | `main` → `main` (+ back-merge)             | CI + AI review                                                                                      |
 | `ai/feature/<issue>-slug`, `ai/fix/…`, `ai/research/…`, `ai/chore/…` | AI agents | `develop` → `develop`                      | CI + auto AI review + auto debugger on failure                                                      |
 
-Rules enforced by GitHub rulesets: nobody pushes directly to `main`/`develop`. PRs need green CI and either 1 approval from `@devs` (CODEOWNERS) **or** a merge by the **Fugazi Merge Gate** GitHub App, which is the only actor on the ruleset's bypass list. The coding agents' own account (`fugazi-ai-bot`) can push `ai/*` branches but **can't merge anything itself**. Only the gate merges, and only after its policy checks pass (§6a). A human developer can take over any `ai/*` branch by pushing to it. The `ai:needs-human` label hands it back.
+Rules enforced by GitHub rulesets: nobody pushes directly to `main`/`develop`. PRs need green CI and either 1 approval from `@devs` (CODEOWNERS) **or** a merge by the **Fugazi Merge Gate** GitHub App, which is the only actor on the ruleset's bypass list. The coding agents' own GitHub App (**Fugazi AI**, `fugazi-ai[bot]`) can push `ai/*` branches but **can't merge anything itself**. Only the gate merges, and only after its policy checks pass (§6a). A human developer can take over any `ai/*` branch by pushing to it. The `ai:needs-human` label hands it back.
 
 ---
 
@@ -169,7 +169,7 @@ Rules enforced by GitHub rulesets: nobody pushes directly to `main`/`develop`. P
 6. **Secrets never enter the sandbox.** The GitHub token is injected by Anthropic's git proxy; MCP and API credentials live in a vault and are substituted at egress. The sandbox has limited network egress (GitHub, Packagist, npm only).
 7. **No production access for agents.** Agents see only the repo. Tests run on SQLite in the sandbox and on MySQL in CI.
 8. **Prompt-injection hygiene.** Issue, Slack and PR text is treated as untrusted data in every prompt. Triage has no code-write tools.
-9. **Full audit trail.** Every session is linked in the PR body and stored in `ai_runs` (agent, version, issue/PR, tokens, cost, duration, outcome). Commits come from the `fugazi-ai-bot` identity.
+9. **Full audit trail.** Every session is linked in the PR body and stored in `ai_runs` (agent, version, issue/PR, tokens, cost, duration, outcome). PRs and comments come from the `fugazi-ai[bot]` identity.
 10. **Prompts are code.** Prompt changes go through a PR, review, versioning and rollback.
 11. **One-switch kill.** `/fugazi pause` or repo variable `AI_AUTOMERGE_MODE=off` returns the whole system to "humans merge and approve deploys". In-flight work stops at the PR.
 
@@ -310,7 +310,7 @@ Rough running cost: about $29/month in DigitalOcean (2 Droplets + registry). Ant
 **GitHub**
 
 1. Create a free org `fugazibyus`, a team `devs` (you), and repo `fugazibyus/FugaziByUs`.
-2. Create a machine user `fugazi-ai-bot` with write access (not in `devs`) and a fine-grained PAT scoped to this repo (contents, issues, pull requests: read/write) → used for the agent repo mount + GitHub MCP vault credential.
+2. Create a GitHub App **Fugazi AI** (contents, pull requests, issues: read/write; actions, checks, statuses: read; no workflows) and install it on the repo. It isn't in `devs` and isn't on the bypass list. Each agent run mints a one-hour token from it, scoped to this repo, for the repo mount and the GitHub CLI vault credential (`docs/SETUP-AI.md` §2).
 3. Create a GitHub App **Fugazi Merge Gate** (permissions: contents, pull requests, checks, deployments) and install it on the repo. Its App ID and private key go into GitHub secrets, and it's added to the ruleset bypass list.
 4. Rulesets on `main`/`develop`, environments `staging` and `production` (prod requires a dev reviewer, with the Deploy Gate as a custom deployment protection rule), policy variables from §6a, and secrets per environment (list generated in `SETUP-HOSTED.md`).
 
@@ -336,4 +336,3 @@ Rough running cost: about $29/month in DigitalOcean (2 Droplets + registry). Ant
 - Who besides you is in `@devs` (reviewers who can merge, and whose issues qualify for AI auto-merge).
 - Your timezone and deploy window for `AI_AUTODEPLOY_PRODUCTION=business-hours`.
 - When to allow migrations to auto-merge (suggest: once the flow has run cleanly for a few weeks).
-- Upgrading the bot from a machine user + PAT to a GitHub App (short-lived tokens; nicer `[bot]` identity) once the flow is proven.
