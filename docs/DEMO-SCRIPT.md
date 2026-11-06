@@ -86,7 +86,7 @@ Move on; come back to it in Act 3 and at the end.
 **Show:** a second issue, from the designer account.
 
 1. The designer opens a Feature issue (GitHub → New issue → Feature), for example "Make the footer links slightly larger on mobile."
-2. Triage runs the same way. The developer agent can build it, but this time the **Merge Gate refuses** to merge on its own: "The issue was reported by a non-developer. A developer must add `ai:go` or `ai:automerge` first." The PR waits in `#fugazi-reviews`.
+2. Triage runs the same way. The developer agent can build it, but this time the **Merge Gate refuses** to merge on its own: "The issue was reported by a non-developer. A developer must add `ai:automerge` first." The PR waits in `#fugazi-reviews`.
 3. "That's the rule we chose: requests from outside the developer team always get a human review before they merge. A developer can opt one in with a label."
 
 If there isn't time to wait for the PR, show the refusal on the rehearsal PR instead.

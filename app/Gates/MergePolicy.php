@@ -136,9 +136,9 @@ class MergePolicy
         } elseif ($pr->reportedByDev) {
             $decision->pass("Issue #{$pr->issue} was reported by a developer.");
         } elseif ($pr->optedInBy !== null) {
-            $decision->pass("@{$pr->optedInBy} (a developer) opted in with `ai:go` / `ai:automerge`.");
+            $decision->pass("@{$pr->optedInBy} (a developer) opted in with `ai:automerge`.");
         } else {
-            $decision->fail('The issue was reported by a non-developer. A developer must add `ai:go` or `ai:automerge` first.');
+            $decision->fail('The issue was reported by a non-developer. A developer must add `ai:automerge` first.');
         }
 
         // The AI reviewer's verdict on this exact commit.

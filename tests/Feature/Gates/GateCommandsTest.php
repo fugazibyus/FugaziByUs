@@ -122,6 +122,35 @@ class GateCommandsTest extends TestCase
             && str_contains($r['body'], "The reviewer's verdict is `request-changes`."));
     }
 
+    public function test_ai_go_on_a_designers_issue_starts_the_work_but_does_not_let_the_gate_merge(): void
+    {
+        $this->givenADesignersIssueLabelledByADeveloper('ai:go');
+
+        $this->artisan('gate:merge', ['pr' => 6, '--dry-run' => true])
+            ->expectsOutputToContain('Merge Gate decision: refuse')
+            ->expectsOutputToContain('The issue was reported by a non-developer. A developer must add `ai:automerge` first.')
+            ->assertSuccessful();
+    }
+
+    public function test_ai_automerge_from_a_developer_lets_the_gate_merge_a_designers_issue(): void
+    {
+        $this->givenADesignersIssueLabelledByADeveloper('ai:automerge');
+
+        $this->artisan('gate:merge', ['pr' => 6, '--dry-run' => true])
+            ->expectsOutputToContain('Merge Gate decision: merge')
+            ->expectsOutputToContain('@sgoodwin10 (a developer) opted in with `ai:automerge`.')
+            ->assertSuccessful();
+    }
+
+    /** Issue #2 was opened by a designer (not in @devs); developer @sgoodwin10 added the label. */
+    private function givenADesignersIssueLabelledByADeveloper(string $label): void
+    {
+        $this->github['GET /issues/2']['user']['login'] = 'a-designer';
+        $this->github['GET /issues/2']['labels'][] = ['name' => $label];
+        $this->github['GET /issues/2/events'] = [['event' => 'labeled', 'label' => ['name' => $label], 'actor' => ['login' => 'sgoodwin10']]];
+        $this->github['GET /issues/6/events'] = [];
+    }
+
     public function test_a_verdict_written_by_anyone_but_the_ai_app_is_ignored(): void
     {
         $this->github['GET /pulls/6/reviews'][0]['user']['login'] = 'helpful-stranger';
