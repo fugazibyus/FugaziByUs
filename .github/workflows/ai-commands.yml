@@ -7,6 +7,8 @@
 #   /ai review [focus]    (PR)     start the reviewer
 #   /ai release                    open or refresh the release PR develop → main
 #   /ai stop                       add ai:stop and interrupt the agents working on this issue/PR
+#   /ai merge             (PR)     developers: ask the Merge Gate to merge now (release PR: the Deploy Gate)
+#   /ai deploy production (PR)     developers: ask the Deploy Gate to ship the release PR now
 #   /ai help                       list the commands
 #
 # Also: when the reporter replies to an issue labelled `ai:needs-info`, triage runs again.
@@ -18,6 +20,7 @@ on:
     types: [created]
 
 permissions:
+  actions: write # to ask the Merge and Deploy Gates (workflow_dispatch)
   contents: read
   issues: write
   pull-requests: write
@@ -43,6 +46,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           AGENTS_ENABLED: ${{ vars.AI_AGENTS != 'off' }}
+          GATES_READY: ${{ vars.MERGE_GATE_APP_ID != '' }}
         with:
           script: |
             const { comment, issue } = context.payload;
@@ -85,7 +89,8 @@ jobs:
               '| `/ai review [focus]` | PR | Start the reviewer |',
               '| `/ai release` | anywhere | Open or refresh the release PR |',
               '| `/ai stop` | issue / PR | Stop the agents and add `ai:stop` |',
-              '| `/ai merge`, `/ai deploy` | | Arrive with the Merge and Deploy Gates |',
+              '| `/ai merge` | PR | Developers: ask the Merge Gate (or, on the release PR, the Deploy Gate) to merge now |',
+              '| `/ai deploy production` | release PR | Developers: ask the Deploy Gate to ship now |',
             ].join('\n');
 
             if (command === 'stop') {
@@ -152,9 +157,24 @@ jobs:
                 return out({ action: 'start', agent: 'release', message: notes });
 
               case 'merge':
-              case 'deploy':
-                await react('eyes');
-                return reply(`\`/ai ${command}\` arrives with the Merge and Deploy Gates (phase 5b). Until then a developer merges and deploys.`);
+              case 'deploy': {
+                if (!(await needs('pr'))) return;
+                if (process.env.GATES_READY !== 'true') return reply('The Merge and Deploy Gates aren\'t set up yet (no `MERGE_GATE_APP_ID`). See docs/SETUP-AI.md §7.');
+                const release = pr.base.ref === 'main';
+                if (command === 'deploy') {
+                  if (notes.split(/\s+/)[0] !== 'production') return reply('Use `/ai deploy production` on the release PR. Staging deploys by itself when develop changes.');
+                  if (!release) return reply('`/ai deploy production` works on the release pull request (develop → main).');
+                }
+                // The gate re-reads this comment to prove who asked, then checks they're in @devs.
+                await github.rest.actions.createWorkflowDispatch({
+                  ...context.repo,
+                  workflow_id: release ? 'deploy-gate.yml' : 'merge-gate.yml',
+                  ref: context.payload.repository.default_branch,
+                  inputs: { pr: String(number), comment_id: String(comment.id) },
+                });
+                await react('rocket');
+                return reply(`🚦 Asked the ${release ? 'Deploy' : 'Merge'} Gate on behalf of @${comment.user.login}. Its decision appears in the gate comment on this PR.`);
+              }
 
               default:
                 await react('confused');

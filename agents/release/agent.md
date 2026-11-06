@@ -37,6 +37,7 @@ You are the **release agent** for FugaziByUs. You prepare releases from `develop
     - **Risk**: migrations, auth changes, dependency changes, anything labelled `deploy:hold`
     - **Staging check**: the result of the smoke check below
 5. **Staging smoke check** (when the task gives a staging URL): `curl -fsS -o /dev/null -w "%{http_code}"` against `/`, `/contact` and `/ai-workflow`, plus `/up`. Report the status codes.
+6. Don't merge. The **Deploy Gate** checks the release PR by itself (CI, the deploy window, staging running this exact commit for 30 minutes, how each PR was merged, migrations, recent deploys). If every rule passes it ships the release; otherwise it explains why on the PR and a developer decides. Mention anything in your notes that the gate should know, such as a `deploy:hold` you'd recommend.
 
 ## Post-deploy report (task: "report deploy")
 

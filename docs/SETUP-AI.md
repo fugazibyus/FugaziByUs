@@ -153,7 +153,7 @@ Only repository collaborators can use these. Write the command at the start of a
 | `/ai stop`             | issue / PR | Add `ai:stop` and interrupt the agents working on it                                                         |
 | `/ai help`             | anywhere   | List the commands                                                                                            |
 
-`/ai merge` and `/ai deploy` arrive with the Merge and Deploy Gates (phase 5b).
+Developers can also comment `/ai merge` on a PR, or `/ai deploy production` on the release PR, to ask the gates (section 7).
 
 ### Switches
 
@@ -169,3 +169,90 @@ Only repository collaborators can use these. Write the command at the start of a
 - The agents' App has no `workflows` permission, and the Guardrails check fails any `ai/*` PR that touches `.github/`.
 - The agent sandbox only gets a one-hour token for this repository. The API key and the App's private key never leave Actions.
 - Comment and issue text reaches the agents through environment variables, never pasted into a script.
+
+## 7. The Merge Gate and the Deploy Gate
+
+The AI can merge into `develop` and ship to production, but only through two gates. They are plain, tested code, not a prompt: `app/Gates/MergePolicy.php` and `app/Gates/DeployPolicy.php` (tests in `tests/Unit/Gates`). Each gate keeps one comment on the PR listing every rule with ✅, ⏳ or ❌, so anyone can see why it did or didn't act.
+
+### Create the Fugazi Merge Gate App
+
+The gates act as a second GitHub App. It's the only App on the branch rules' bypass list, and the agents never get its key.
+
+1. github.com/organizations/fugazibyus/settings/apps → **New GitHub App**.
+    - Name: **Fugazi Merge Gate** (any free name works).
+    - Homepage URL: `https://github.com/fugazibyus/FugaziByUs`.
+    - Webhook: untick **Active**.
+    - Repository permissions:
+
+        | Permission    | Access         | Why                                                     |
+        | ------------- | -------------- | ------------------------------------------------------- |
+        | Contents      | Read and write | Merge pull requests, update branches                    |
+        | Pull requests | Read and write | Read PRs and reviews, merge                             |
+        | Issues        | Read and write | The gate comment and the `ai:automerged` label          |
+        | Checks        | Read-only      | Is CI green?                                            |
+        | Deployments   | Read-only      | When was production last deployed, and did it work?     |
+        | Metadata      | Read-only      | Required                                                |
+        | **Workflows** | **No access**  | PRs that change workflows are always merged by a person |
+
+    - Organization permissions: **Members: Read-only** (to check who's in `@devs`).
+    - Where can this App be installed: **Only on this account** → **Create GitHub App**.
+2. Note the **App ID**, then **Generate a private key**.
+3. **Install App** → `fugazibyus` → **Only select repositories → FugaziByUs** → Install.
+4. Give GitHub Actions the ID and key, then put the App on the bypass list (re-running the bootstrap is safe):
+
+    ```bash
+    gh variable set MERGE_GATE_APP_ID --repo fugazibyus/FugaziByUs --body "<the App ID>"
+    gh secret set MERGE_GATE_APP_PRIVATE_KEY --repo fugazibyus/FugaziByUs < ~/Downloads/fugazi-merge-gate.*.private-key.pem
+    scripts/bootstrap-github.sh
+    ```
+
+5. Delete the downloaded `.pem`; GitHub holds the only copy you need.
+
+Until `MERGE_GATE_APP_ID` is set, both gates stay switched off and developers merge as before.
+
+### Merge Gate (into `develop`)
+
+It runs when CI finishes, when the reviewer posts a verdict, and when labels change, but only for `ai/*` branches and the `chore/sync-claude-lock` PR. An AI pull request merges by itself only if **every** rule passes:
+
+| Rule                              | Detail                                                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| AI merging is on                  | `AI_AUTOMERGE_MODE` is `devs-only` (default) or `all`                                                   |
+| Someone stands behind it          | `devs-only`: the issue was reported by a `@devs` member, or a developer added `ai:go` / `ai:automerge`  |
+| CI and Guardrails are green       | On the PR's latest commit                                                                               |
+| The reviewer approved this commit | Verdict `approve`, risk low or medium, 0 blocking. Only reviews written by the Fugazi AI App count      |
+| Small enough                      | Size label ≤ `AI_MAX_AUTOMERGE_SIZE` (default M)                                                        |
+| Nothing sensitive                 | No paths from `.github/guardrails/protected-paths.txt`, no migrations, no workflow changes              |
+| Not held                          | No `ai:no-automerge`, `blocked`, `deploy:hold`, `ai:stop`, `ai:needs-human`; not a draft                |
+| Up to date                        | If `develop` moved on, the gate updates the branch first; CI and the reviewer then check the new commit |
+
+It squash-merges, links the issue and the agent sessions in the commit message, and labels the PR and issue `ai:automerged`.
+
+**`/ai merge`** (developers only, on any PR into `develop`): the developer is the approval, so the gate only checks CI, Guardrails, hold labels, workflow changes and that the branch is up to date. The gate re-reads the comment to prove who asked.
+
+### Deploy Gate (release PR `develop` → `main`)
+
+It re-checks every 30 minutes while a release PR is open, and whenever `develop`'s CI finishes or labels or approvals change. It merges the release (which deploys production, from phase 8) only if **every** rule passes:
+
+| Rule                          | Detail                                                                                                                                       |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inside the deploy window      | `AI_AUTODEPLOY_PRODUCTION=business-hours` (default): Mon–Thu 09:00–16:00 in `AI_TIMEZONE` (Australia/Sydney). `on` = any time, `off` = never |
+| Staging runs this release     | `STAGING_URL/up` is healthy and `STAGING_URL/version` reports the release commit, deployed ≥ 30 minutes ago                                  |
+| Every released PR was checked | Each was merged by a person or by the Merge Gate, and none has `deploy:hold`                                                                 |
+| Migrations need a developer   | If the release contains migrations, a `@devs` member must approve the release PR                                                             |
+| No recent or failed deploy    | No production deploy in the last 60 minutes, and the last one succeeded                                                                      |
+| CI green, not held            | CI passed + Guardrails, no `deploy:hold`, not a draft                                                                                        |
+
+**`/ai deploy production`** (developers only, on the release PR) ships now: only CI and `deploy:hold` still apply.
+
+Until phase 8 sets `STAGING_URL`, the Deploy Gate always says a developer needs to ship, because there's no staging to check against.
+
+### Switches
+
+| Variable                   | Values                          | Default            |
+| -------------------------- | ------------------------------- | ------------------ |
+| `AI_AUTOMERGE_MODE`        | `off` · `devs-only` · `all`     | `devs-only`        |
+| `AI_MAX_AUTOMERGE_SIZE`    | `s` · `m` · `l`                 | `m`                |
+| `AI_AUTODEPLOY_PRODUCTION` | `off` · `business-hours` · `on` | `business-hours`   |
+| `AI_TIMEZONE`              | Any time zone name              | `Australia/Sydney` |
+
+Setting `AI_AUTOMERGE_MODE=off` and `AI_AUTODEPLOY_PRODUCTION=off` returns everything to "a person merges and ships". A developer can always merge any PR by hand, whatever the gates say.
