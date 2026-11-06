@@ -214,16 +214,16 @@ Until `MERGE_GATE_APP_ID` is set, both gates stay switched off and developers me
 
 It runs when CI finishes, when the reviewer posts a verdict, and when labels change, but only for `ai/*` branches and the `chore/sync-claude-lock` PR. An AI pull request merges by itself only if **every** rule passes:
 
-| Rule                              | Detail                                                                                                  |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| AI merging is on                  | `AI_AUTOMERGE_MODE` is `devs-only` (default) or `all`                                                   |
-| Someone stands behind it          | `devs-only`: the issue was reported by a `@devs` member, or a developer added `ai:go` / `ai:automerge`  |
-| CI and Guardrails are green       | On the PR's latest commit                                                                               |
-| The reviewer approved this commit | Verdict `approve`, risk low or medium, 0 blocking. Only reviews written by the Fugazi AI App count      |
-| Small enough                      | Size label ≤ `AI_MAX_AUTOMERGE_SIZE` (default M)                                                        |
-| Nothing sensitive                 | No paths from `.github/guardrails/protected-paths.txt`, no migrations, no workflow changes              |
-| Not held                          | No `ai:no-automerge`, `blocked`, `deploy:hold`, `ai:stop`, `ai:needs-human`; not a draft                |
-| Up to date                        | If `develop` moved on, the gate updates the branch first; CI and the reviewer then check the new commit |
+| Rule                              | Detail                                                                                                                      |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| AI merging is on                  | `AI_AUTOMERGE_MODE` is `devs-only` (default) or `all`                                                                       |
+| Someone stands behind it          | `devs-only`: the issue was reported by a `@devs` member, or a developer added `ai:automerge` (`ai:go` only starts the work) |
+| CI and Guardrails are green       | On the PR's latest commit                                                                                                   |
+| The reviewer approved this commit | Verdict `approve`, risk low or medium, 0 blocking. Only reviews written by the Fugazi AI App count                          |
+| Small enough                      | Size label ≤ `AI_MAX_AUTOMERGE_SIZE` (default M)                                                                            |
+| Nothing sensitive                 | No paths from `.github/guardrails/protected-paths.txt`, no migrations, no workflow changes                                  |
+| Not held                          | No `ai:no-automerge`, `blocked`, `deploy:hold`, `ai:stop`, `ai:needs-human`; not a draft                                    |
+| Up to date                        | If `develop` moved on, the gate updates the branch first; CI and the reviewer then check the new commit                     |
 
 It squash-merges, links the issue and the agent sessions in the commit message, and labels the PR and issue `ai:automerged`.
 

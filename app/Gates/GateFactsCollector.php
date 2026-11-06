@@ -148,14 +148,17 @@ class GateFactsCollector
     }
 
     /**
-     * The developer who most recently added `ai:go` or `ai:automerge` (still present) to the PR or its issue.
+     * The developer who most recently added `ai:automerge` (still present) to the PR or its issue.
+     *
+     * `ai:go` doesn't count: it only lets the agent start work. A developer must opt in to
+     * merging separately, so a designer's or PM's ticket can't merge just because work began.
      *
      * @param  array<int>  $numbers
      * @param  list<string>  $labels
      */
     private function optedInBy(array $numbers, array $labels): ?string
     {
-        if (! in_array('ai:go', $labels, true) && ! in_array('ai:automerge', $labels, true)) {
+        if (! in_array('ai:automerge', $labels, true)) {
             return null;
         }
 
@@ -166,7 +169,7 @@ class GateFactsCollector
                 $label = $event['label']['name'] ?? null;
                 $actor = $event['actor']['login'] ?? null;
 
-                if ($event['event'] === 'labeled' && in_array($label, ['ai:go', 'ai:automerge'], true) && $this->github->isDev($actor)) {
+                if ($event['event'] === 'labeled' && $label === 'ai:automerge' && $this->github->isDev($actor)) {
                     $by = $actor;
                 }
             }

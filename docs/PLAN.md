@@ -189,7 +189,7 @@ Both gates are GitHub Actions workflows that hold a **GitHub App** token (`Fugaz
 
 **Merge Gate: a PR into `develop` auto-merges only if ALL of the following hold:**
 
-1. The mode allows it. Under `devs-only`, the issue was opened by a `@devs` member, or a dev added `ai:go`/`ai:automerge`. Non-dev issues need a dev opt-in (your original rule, kept as the default).
+1. The mode allows it. Under `devs-only`, the issue was opened by a `@devs` member, or a dev added `ai:automerge`. Non-dev issues (designers, PMs) need that explicit dev opt-in; `ai:go` only starts the agent and never approves a merge.
 2. The branch is `ai/*`. Human branches merge only by a human, or when a dev comments `/ai merge`.
 3. All CI checks are green (lint, static analysis, types, tests, build, Playwright smoke, guardrails).
 4. The reviewer agent's latest verdict is `approve`, risk `low` or `medium`, with no unresolved blocking comments, and it reviewed the current head commit.
