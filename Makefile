@@ -109,6 +109,15 @@ ai-run: ## Start a cloud agent: make ai-run agent=developer issue=12 [pr=34 bran
 		$(if $(issue),--issue=$(issue)) $(if $(pr),--pr=$(pr)) $(if $(branch),--branch=$(branch)) \
 		$(if $(msg),--message="$(msg)") --trigger=local --actor=$(shell git config user.name | tr ' ' '-')
 
+ai-metrics: ## Pull agent runs from Anthropic and AI PRs from GitHub into the widget tables
+	$(EXEC) php artisan ai:sync-runs
+
+ai-demo: ## Fill the AI widget with a month of demo activity (local/staging only)
+	$(EXEC) php artisan db:seed --class=AiDemoSeeder
+
+ai-demo-clear: ## Remove the demo activity, keeping real runs
+	$(EXEC) php artisan tinker --execute="App\\Models\\AiRun::where('demo', true)->delete(); App\\Models\\AiPullRequest::where('demo', true)->delete(); App\\Support\\AiStats::forget();"
+
 ai-stop: ## Kill switch: make ai-stop issue=12 | pr=34 | all=1
 	$(EXEC) php artisan ai:stop $(if $(issue),--issue=$(issue)) $(if $(pr),--pr=$(pr)) $(if $(all),--all)
 
@@ -117,4 +126,4 @@ help:
 	@grep -hE '(^[a-zA-Z_-]+:.*?## .*$$)|(^## )' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; /^## /{printf "\n\033[33m%s\033[0m\n", substr($$0, 4); next} {printf "  \033[32m%-10s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: setup up down restart build ps logs shell db-shell artisan migrate fresh composer npm assets test lint check e2e ai-agents ai-sync ai-plan ai-apply ai-github-token ai-run ai-stop help
+.PHONY: setup up down restart build ps logs shell db-shell artisan migrate fresh composer npm assets test lint check e2e ai-agents ai-sync ai-plan ai-apply ai-github-token ai-run ai-stop ai-metrics ai-demo ai-demo-clear help

@@ -5,6 +5,8 @@ namespace App\Ai;
 use Anthropic\Beta\BetaMonetaryAmount;
 use Anthropic\Beta\Sessions\BetaManagedAgentsBudgetLimit;
 use Anthropic\Beta\Sessions\BetaManagedAgentsGitHubRepositoryResourceParams;
+use Anthropic\Beta\Sessions\BetaManagedAgentsSession;
+use Anthropic\Beta\Sessions\Events\ManagedAgentsAgentMessageEvent;
 use Anthropic\Beta\Sessions\Resources\ManagedAgentsGitHubRepositoryResource;
 use Anthropic\Beta\Vaults\Credentials\ManagedAgentsEnvironmentVariableAuthResponse;
 use Anthropic\Beta\Vaults\Credentials\ManagedAgentsEnvironmentVariableCreateParams;
@@ -159,5 +161,62 @@ class AnthropicManagedAgentsGateway implements ManagedAgentsGateway
     public function interruptSession(string $sessionId): void
     {
         $this->client->beta->sessions->events->send($sessionId, events: [['type' => 'user.interrupt']]);
+    }
+
+    public function session(string $sessionId): SessionSnapshot
+    {
+        return $this->snapshot($this->client->beta->sessions->retrieve($sessionId));
+    }
+
+    public function sessionsSince(CarbonImmutable $since): array
+    {
+        $snapshots = [];
+        $page = $this->client->beta->sessions->list(createdAtGte: $since, limit: 100, includeArchived: true);
+
+        foreach ($page->pagingEachItem() as $session) {
+            if (($session->metadata['app'] ?? null) === 'fugazibyus') {
+                $snapshots[] = $this->snapshot($session);
+            }
+        }
+
+        return $snapshots;
+    }
+
+    public function lastAgentMessage(string $sessionId): ?array
+    {
+        $page = $this->client->beta->sessions->events->list($sessionId, limit: 1, order: 'desc', types: ['agent.message']);
+
+        foreach ($page->getItems() as $event) {
+            if ($event instanceof ManagedAgentsAgentMessageEvent) {
+                return [
+                    'text' => implode("\n", array_map(fn ($block) => (string) ($block->text ?? ''), $event->content)),
+                    'at' => CarbonImmutable::instance($event->processedAt),
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private function snapshot(BetaManagedAgentsSession $session): SessionSnapshot
+    {
+        $usage = $session->usage;
+        $cacheCreation = $usage->cacheCreation ?? null;
+
+        return new SessionSnapshot(
+            id: $session->id,
+            status: $session->status,
+            metadata: array_map(strval(...), $session->metadata),
+            title: $session->title,
+            agentVersion: $session->agent->version,
+            inputTokens: (int) ($usage->inputTokens ?? 0),
+            outputTokens: (int) ($usage->outputTokens ?? 0),
+            cacheReadTokens: (int) ($usage->cacheReadInputTokens ?? 0),
+            cacheCreationTokens: $cacheCreation !== null ? (int) (($cacheCreation->ephemeral5mInputTokens ?? 0) + ($cacheCreation->ephemeral1hInputTokens ?? 0)) : 0,
+            costCents: (int) ($usage->listCost->amount ?? 0),
+            activeSeconds: (int) round($session->stats->activeSeconds ?? $usage->activeSeconds ?? 0),
+            createdAt: CarbonImmutable::instance($session->createdAt),
+            updatedAt: CarbonImmutable::instance($session->updatedAt),
+        );
     }
 }

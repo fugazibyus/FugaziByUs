@@ -256,3 +256,36 @@ Until phase 8 sets `STAGING_URL`, the Deploy Gate always says a developer needs 
 | `AI_TIMEZONE`              | Any time zone name              | `Australia/Sydney` |
 
 Setting `AI_AUTOMERGE_MODE=off` and `AI_AUTODEPLOY_PRODUCTION=off` returns everything to "a person merges and ships". A developer can always merge any PR by hand, whatever the gates say.
+
+## 8. Metrics: the "AI at work" widget
+
+The homepage widget shows real numbers: spend, tokens, runs by agent, AI pull requests, auto-merges, and the average time from issue to PR. They come from two tables:
+
+| Table              | Filled from                                                                                          | How                                                             |
+| ------------------ | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `ai_runs`          | Claude Managed Agents: one row per session (tokens, list cost, active time, the agent's JSON result) | Anthropic webhooks (live), plus `ai:sync-runs` every 10 minutes |
+| `ai_pull_requests` | GitHub: every `ai/*` pull request (opened, merged, auto-merged, linked issue)                        | `ai:sync-runs` every 10 minutes                                 |
+
+A run counts as **succeeded** when the agent finished with a result whose outcome isn't `needs_human`, `failed` or `blocked`. A session that ends with no result (stopped, out of budget) counts as unsuccessful.
+
+### Locally
+
+Webhooks can't reach your laptop, so pull the numbers yourself:
+
+```bash
+make ai-metrics       # sync sessions from Anthropic and PRs from GitHub
+make ai-demo          # add a month of demo activity (marked as demo rows)
+make ai-demo-clear    # remove the demo rows, keep the real ones
+```
+
+The `scheduler` container also runs the sync every 10 minutes.
+
+### Hosted: the Anthropic webhook
+
+Once the site has a public URL (phase 8):
+
+1. Claude Console → `fugazibyus` workspace → **Webhooks** → **Add endpoint**.
+2. URL: `https://<your host>/webhooks/anthropic`. Events: all **session** events.
+3. Copy the signing secret (`whsec_…`) into the server's `.env` as `ANTHROPIC_WEBHOOK_SIGNING_KEY`.
+
+The endpoint checks every signature and rejects anything unsigned. The event only names the session, so a queued job (`SyncAgentRun`) fetches the details.
