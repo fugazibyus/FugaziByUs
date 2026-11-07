@@ -20,6 +20,7 @@ class GitHub
         private readonly string $repository,
         private readonly string $devsTeam = 'devs',
         private readonly string $productTeam = 'product',
+        private readonly string $gateBot = 'fugazi-merge-gate[bot]',
     ) {}
 
     public static function fromConfig(): self
@@ -35,6 +36,7 @@ class GitHub
             (string) config('gates.repository'),
             (string) config('gates.devs_team'),
             (string) config('gates.product_team'),
+            (string) config('gates.gate_bot'),
         );
     }
 
@@ -166,6 +168,21 @@ class GitHub
             'commit_title' => $title,
             'commit_message' => $message,
         ])->throw();
+    }
+
+    /** @return array<string, mixed> */
+    public function commit(string $sha): array
+    {
+        return $this->get("/commits/{$sha}");
+    }
+
+    /** The body of the comment this gate keeps on the PR (only the gate App's own counts). */
+    public function gateComment(int $number, string $marker): ?string
+    {
+        $comment = collect($this->paginate("/issues/{$number}/comments"))
+            ->first(fn (array $c) => ($c['user']['login'] ?? null) === $this->gateBot && str_contains((string) $c['body'], $marker));
+
+        return $comment !== null ? (string) $comment['body'] : null;
     }
 
     public function updateBranch(int $number, string $sha): void

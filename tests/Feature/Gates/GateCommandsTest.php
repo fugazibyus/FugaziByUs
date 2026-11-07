@@ -4,11 +4,17 @@ namespace Tests\Feature\Gates;
 
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class GateCommandsTest extends TestCase
 {
     private const SHA = '7dfccd0111da7fcd301d1c5915827a60d43dae54';
+
+    /** The gate's merge of develop into the PR branch. */
+    private const UPDATED_SHA = '7e4f0630a1b2c3d4e5f60718293a4b5c6d7e8f90';
+
+    private const DEVELOP_SHA = '29aa48edcb9a9e176c1f1e6ccd650c0b836b6cbc';
 
     private const REPO = 'https://api.github.com/repos/fugazibyus/FugaziByUs';
 
@@ -203,6 +209,77 @@ class GateCommandsTest extends TestCase
             ->assertSuccessful();
 
         Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/pulls/6/merge'));
+    }
+
+    public function test_a_merge_request_is_kept_while_the_gate_updates_the_branch(): void
+    {
+        // A designer's issue, so only the `/ai merge` request lets it through.
+        $this->givenADesignersIssueLabelledByADeveloper('ai:go');
+        $this->givenAnAiMergeComment(by: 'sgoodwin10');
+        $this->github['GET /compare/develop...'.self::SHA] = ['behind_by' => 1];
+        $this->github['PUT /pulls/6/update-branch'] = ['message' => 'Updating pull request branch.'];
+
+        $this->artisan('gate:merge', ['pr' => 6, '--comment' => 555])
+            ->expectsOutputToContain('Merge Gate decision: update-branch')
+            ->assertSuccessful();
+
+        Http::assertSent(fn (Request $r) => $r->method() === 'POST' && str_ends_with($r->url(), '/issues/6/comments')
+            && str_contains($r['body'], '<!-- merge-request: @sgoodwin10 '.self::SHA.' -->'));
+
+        // CI finishes on the gate's merge of develop into the branch: a run nobody asked for.
+        $this->givenTheGateUpdatedTheBranch(parents: [self::SHA, self::DEVELOP_SHA], requestedBy: 'sgoodwin10');
+
+        $this->artisan('gate:merge', ['pr' => 6, '--trigger' => 'ci'])
+            ->expectsOutputToContain('Merge Gate decision: merge')
+            ->expectsOutputToContain('Requested by @sgoodwin10, a developer (`/ai merge`, still standing).')
+            ->assertSuccessful();
+
+        Http::assertSent(fn (Request $r) => $r->method() === 'PUT' && str_ends_with($r->url(), '/pulls/6/merge') && $r['sha'] === self::UPDATED_SHA);
+    }
+
+    /**
+     * @return array<string, array{0: list<string>, 1: string}>
+     */
+    public static function lapsedRequests(): array
+    {
+        return [
+            'someone pushed a new commit' => [['0000000000000000000000000000000000000001'], 'gate'],
+            'the merge brought in a branch that isn\'t develop' => [[self::SHA, 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'], 'gate'],
+            'the request marker wasn\'t written by the gate' => [[self::SHA, self::DEVELOP_SHA], 'someone-else[bot]'],
+        ];
+    }
+
+    #[DataProvider('lapsedRequests')]
+    public function test_a_kept_merge_request_lapses_unless_only_the_gate_changed_the_branch(array $parents, string $commentBy): void
+    {
+        $this->givenADesignersIssueLabelledByADeveloper('ai:go');
+        $this->givenTheGateUpdatedTheBranch(parents: $parents, requestedBy: 'sgoodwin10', commentBy: $commentBy);
+
+        $this->artisan('gate:merge', ['pr' => 6, '--dry-run' => true])
+            ->expectsOutputToContain('Merge Gate decision: refuse')
+            ->expectsOutputToContain('The issue was reported by a non-developer.')
+            ->assertSuccessful();
+    }
+
+    /**
+     * The PR's head is now UPDATED_SHA (with these parents), CI is green on it, and the gate's
+     * comment remembers who asked to merge SHA.
+     *
+     * @param  list<string>  $parents
+     */
+    private function givenTheGateUpdatedTheBranch(array $parents, string $requestedBy, string $commentBy = 'gate'): void
+    {
+        $this->github['GET /pulls/6']['head']['sha'] = self::UPDATED_SHA;
+        $this->github['GET /commits/'.self::UPDATED_SHA] = ['sha' => self::UPDATED_SHA, 'parents' => array_map(fn (string $sha) => ['sha' => $sha], $parents)];
+        $this->github['GET /commits/'.self::UPDATED_SHA.'/check-runs'] = $this->github['GET /commits/'.self::SHA.'/check-runs'];
+        $this->github['GET /compare/develop...'.self::UPDATED_SHA] = ['behind_by' => 0];
+        $this->github['GET /compare/'.self::DEVELOP_SHA.'...develop'] = ['status' => 'identical'];
+        $this->github['GET /compare/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee...develop'] = ['status' => 'diverged'];
+        $this->github['GET /issues/6/comments'] = [[
+            'id' => 99, 'user' => ['login' => $commentBy === 'gate' ? 'fugazi-merge-gate[bot]' : $commentBy, 'type' => 'Bot'],
+            'body' => "<!-- merge-gate -->\n### 🚦 Merge Gate: 🔄 Updating the branch first\n<!-- merge-request: @{$requestedBy} ".self::SHA.' -->',
+        ]];
+        $this->github['PATCH /issues/comments/99'] = ['id' => 99];
     }
 
     private function givenAnAiMergeComment(string $by): void
