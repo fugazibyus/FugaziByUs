@@ -41,6 +41,7 @@ class GateFactsCollector
         $issueNumber = preg_match(self::CLOSES, (string) ($pr['body'] ?? ''), $m) ? (int) $m[1] : null;
         $issue = $issueNumber !== null ? $this->github->issue($issueNumber) : null;
         $reviews = $this->github->reviews($number);
+        $reporter = $issue['user']['login'] ?? null;
 
         $labels = array_values(array_unique([
             ...array_column($pr['labels'], 'name'),
@@ -63,7 +64,9 @@ class GateFactsCollector
             behindBy: (int) ($this->github->compare((string) $pr['base']['ref'], $headSha)['behind_by'] ?? 0),
             verdict: $this->verdict($reviews),
             issue: $issueNumber,
-            reportedByDev: $issue !== null && $this->github->isDev($issue['user']['login'] ?? null),
+            reporter: $reporter,
+            reportedByDev: $this->github->isDev($reporter),
+            reportedByProduct: $this->github->isProduct($reporter),
             optedInBy: $this->optedInBy(array_filter([$number, $issueNumber]), $labels),
             requestedBy: $requestedBy,
             requesterIsDev: $requestedBy !== null && $this->github->isDev($requestedBy),

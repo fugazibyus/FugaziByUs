@@ -7,7 +7,8 @@ namespace App\Gates;
  * human only if every rule passes. This class only decides; it never calls GitHub.
  *
  * Three ways through the gate:
- *   1. Automatic: an ai/* PR that the reviewer approved and that meets every policy rule.
+ *   1. Automatic: an ai/* PR that the reviewer approved and that meets every policy rule,
+ *      for an issue a developer or product member reported (or opted in).
  *   2. A developer asks with `/ai merge`: the developer is the approval, so only the
  *      safety rules (CI, holds, workflows, up to date) still apply.
  *      A product member's `/ai merge` (or `ai:automerge`) only stands in for a developer
@@ -143,12 +144,14 @@ class MergePolicy
             $decision->pass('AI merging is open to every issue (`AI_AUTOMERGE_MODE=all`).');
         } elseif ($pr->reportedByDev) {
             $decision->pass("Issue #{$pr->issue} was reported by a developer.");
+        } elseif ($pr->reportedByProduct) {
+            $decision->pass("Issue #{$pr->issue} was reported by @{$pr->reporter} from @product.");
         } elseif ($pr->requesterIsProduct) {
             $decision->pass("@{$pr->requestedBy} (product) asked to ship it to staging.");
         } elseif ($pr->optedInBy !== null) {
             $decision->pass("@{$pr->optedInBy} opted in with `ai:automerge`.");
         } else {
-            $decision->fail('The issue was reported by a non-developer. A developer or product member must add `ai:automerge` or comment `/ai merge` first.');
+            $decision->fail('The issue was reported by someone outside @devs and @product. A developer or product member must add `ai:automerge` or comment `/ai merge` first.');
         }
 
         // The AI reviewer's verdict on this exact commit.

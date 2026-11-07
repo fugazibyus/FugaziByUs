@@ -77,7 +77,7 @@ class MergePolicyTest extends TestCase
 
     public function test_issues_from_non_developers_need_a_developer_opt_in(): void
     {
-        $this->assertAction(Decision::REFUSE, $this->decide($this->pr(reportedByDev: false)), 'non-developer');
+        $this->assertAction(Decision::REFUSE, $this->decide($this->pr(reportedByDev: false)), 'outside @devs and @product');
         $this->assertAction(Decision::MERGE, $this->decide($this->pr(reportedByDev: false, optedInBy: 'sgoodwin10')));
         $this->assertAction(Decision::MERGE, $this->decide($this->pr(reportedByDev: false), mode: 'all'));
     }
@@ -145,6 +145,17 @@ class MergePolicyTest extends TestCase
 
         $this->assertAction(Decision::MERGE, $this->decide($this->pr(...$human, requestedBy: 'sgoodwin10', requesterIsDev: true), mode: 'off'));
         $this->assertAction(Decision::REFUSE, $this->decide($this->pr(head: 'feature/9-tweak', requestedBy: 'visitor', requesterIsDev: false)), 'only members of @devs or @product');
+    }
+
+    public function test_issues_reported_by_product_members_merge_like_developers_issues(): void
+    {
+        $product = ['reportedByDev' => false, 'reportedByProduct' => true];
+
+        $this->assertAction(Decision::MERGE, $this->decide($this->pr(...$product)));
+        $this->assertAction(Decision::REFUSE, $this->decide($this->pr(...$product, labels: ['size:l'])), 'above the limit');
+        $this->assertAction(Decision::REFUSE, $this->decide($this->pr(...$product, files: ['composer.json'])), 'sensitive paths');
+        $this->assertAction(Decision::REFUSE, $this->decide($this->pr(...$product, verdict: ['verdict' => 'request-changes', 'risk' => 'low', 'sha' => self::SHA, 'blocking' => 1])), 'blocking problem');
+        $this->assertAction(Decision::REFUSE, $this->decide($this->pr(...$product), mode: 'off'), 'AI merging is off');
     }
 
     public function test_a_product_member_can_ship_approved_ai_work_to_staging(): void
