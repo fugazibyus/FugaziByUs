@@ -80,6 +80,25 @@ test('the contact form marks its required fields', async ({ page }) => {
     );
 });
 
+test('the required fields note sits next to the send button', async ({
+    page,
+}) => {
+    await page.goto('/contact');
+    const note = await page.getByTestId('required-fields-note').boundingBox();
+    const button = await page.getByTestId('contact-submit').boundingBox();
+    const message = await page.getByLabel('Message').boundingBox();
+    if (!note || !button || !message) {
+        throw new Error('The note, button and message field must be visible.');
+    }
+
+    // Below the last field, not above the form.
+    expect(note.y).toBeGreaterThan(message.y + message.height);
+    // Same row as the button, on its left, without overlapping it.
+    expect(note.y).toBeLessThan(button.y + button.height);
+    expect(note.y + note.height).toBeGreaterThan(button.y);
+    expect(note.x + note.width).toBeLessThanOrEqual(button.x);
+});
+
 test('contact FAQ answers open and close by mouse and keyboard', async ({
     page,
 }) => {
