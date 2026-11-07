@@ -213,6 +213,46 @@ The gate squash-merges with a message linking the issue, the agent sessions and 
 
 **Manual override is always available:** a dev can merge any PR or run the manual `Deploy` workflow regardless of the gates.
 
+### 6b. Optional route: the gate reports, GitHub merges
+
+> **Status:** optional, not built. §6a describes what runs today. This section records a more conventional design we can move to if we want one.
+
+**Why consider it.** Today the Merge Gate App is on the ruleset bypass list and calls the merge API itself. That works, but few teams set it up this way. Most let GitHub do the merge once every required check passes. With the bypass, a bug in the gate or a leaked App key can merge past branch protection. Without it, the worst case is a wrong pass or fail on one check.
+
+**What changes.** The policy (`app/Gates/MergePolicy.php`), its tests and the triggers stay as they are. Only the last step changes: the gate reports its decision instead of acting on it.
+
+| Today (§6a)                                                 | Optional route                                                                                                                                                                                                         |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Gate App on the `develop` ruleset bypass list               | No bypass actors on `develop`                                                                                                                                                                                          |
+| Gate calls the merge API                                    | Gate posts a **`Merge Gate`** commit status on the head commit (`success` / `pending` / `failure`, with the reasons) and turns on GitHub auto-merge (squash, same commit message). On failure it turns auto-merge off  |
+| Ruleset: green CI + (1 `@devs` approval **or** gate bypass) | Ruleset: required checks `CI passed`, `Guardrails` and `Merge Gate`. No ruleset approval count; the gate's check needs either a `@devs` approval or a pass of the AI rules. CODEOWNERS review on sensitive paths stays |
+| Gate updates a stale branch, then merges later              | Same, or switch on a merge queue for `develop` and let GitHub keep branches up to date                                                                                                                                 |
+| Gate adds `ai:automerged` when it merges                    | A small job on `pull_request_target: closed` (merged) adds the label, clears `ai:pr-open` and tells Slack                                                                                                              |
+
+**Bonus.** A commit status belongs to one commit. A new push leaves the new head without a `Merge Gate` pass, so GitHub itself blocks the merge until the gate checks again (backing up rule 4 in §6a).
+
+**Code changes (roughly one PR each):**
+
+1. `app/Gates/GitHub.php`: add `setStatus()` (REST commit statuses) and `enableAutoMerge()` / `disableAutoMerge()` (GraphQL).
+2. `GateMergeCommand`: on `MERGE`, post `success` and enable auto-merge instead of merging. On `WAIT` / `UPDATE_BRANCH`, post `pending`. On `REFUSE`, post `failure` and disable auto-merge. Human PRs get a check too, passing once a `@devs` member has approved.
+3. `merge-gate.yml`: run for human PRs as well (they need the check now), and add the post-merge labelling job.
+4. Tests: `MergePolicyTest` is unchanged. `GateCommandsTest` asserts statuses and auto-merge calls instead of the merge call.
+5. GitHub App: add `statuses: write` and keep pull requests and contents write. It is no longer a bypass actor.
+
+**Rollout (each step can be undone on its own):**
+
+1. **Shadow mode.** The gate posts the `Merge Gate` status but still merges as today. We compare the two for a week or two.
+2. **Switch.** Make `Merge Gate` a required check, drop the approval count from the ruleset, and change the gate to auto-merge instead of merging.
+3. **Remove the bypass.** Take the Merge Gate App off the `develop` bypass list. Undo: put it back.
+
+**Deploy Gate.** The same idea applies to release PRs into `main`. Production can also use a **custom deployment protection rule**, GitHub's built-in way for an App to approve or reject a deployment, instead of the gate merging and deploying.
+
+**Trade-offs to accept:**
+
+- Human PRs also wait for the gate's check, and the "needs a `@devs` approval" rule moves from the ruleset into the gate's code (with tests).
+- There is a short gap between someone adding `ai:no-automerge` or `blocked` and the gate turning auto-merge off. Today the gate re-checks just before it merges.
+- Auto-merge and a merge queue must be switched on in the repo settings, and the Slack "merged" message moves to the post-merge job.
+
 ---
 
 ## 7. Slack integration
@@ -354,3 +394,4 @@ Rough running cost: about $29/month in DigitalOcean (2 Droplets + registry). Ant
 - Who besides you is in `@devs` (reviewers who can merge, and whose issues qualify for AI auto-merge).
 - Your timezone and deploy window for `AI_AUTODEPLOY_PRODUCTION=business-hours`.
 - When to allow migrations to auto-merge (suggest: once the flow has run cleanly for a few weeks).
+- Whether to move the Merge Gate to the "report, let GitHub merge" route in §6b (suggest: start with shadow mode).
