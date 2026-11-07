@@ -114,13 +114,6 @@ const knownName = computed(() =>
                     class="grid gap-5"
                     v-slot="{ errors, processing }"
                 >
-                    <p
-                        class="text-sm text-muted-foreground"
-                        data-test="required-fields-note"
-                    >
-                        <RequiredMark /> Required fields
-                    </p>
-
                     <div class="grid gap-5 sm:grid-cols-2">
                         <div class="grid gap-2">
                             <Label for="name" class="gap-1"
@@ -196,10 +189,19 @@ const knownName = computed(() =>
                     </div>
                     <InputError :message="errors.website" />
 
-                    <div class="flex justify-end">
+                    <div
+                        class="flex flex-wrap items-center justify-between gap-4"
+                    >
+                        <p
+                            class="text-sm text-muted-foreground"
+                            data-test="required-fields-note"
+                        >
+                            <RequiredMark /> Required fields
+                        </p>
                         <Button
                             type="submit"
                             size="lg"
+                            class="ml-auto"
                             :disabled="processing"
                             data-test="contact-submit"
                         >
