@@ -227,7 +227,7 @@ It runs when CI finishes, when the reviewer posts a verdict, and when labels cha
 
 It squash-merges, links the issue and the agent sessions in the commit message, and labels the PR and issue `ai:automerged`.
 
-**`/ai merge`** (developers, on any PR into `develop`): the developer is the approval, so the gate only checks CI, Guardrails, hold labels, workflow changes and that the branch is up to date. The gate re-reads the comment to prove who asked.
+**`/ai merge`** (developers, on any PR into `develop`): the developer is the approval, so the gate only checks CI, Guardrails, hold labels, workflow changes and that the branch is up to date. The gate re-reads the comment to prove who asked. If the gate first has to wait (CI, the reviewer) or bring the branch up to date with `develop`, the request is kept in the gate comment and the next check still honours it. It lapses if anyone other than the gate pushes to the branch, or a check fails, so ask again after that.
 
 **Product can ship to staging, not production.** Members of the `@product` team (`GATE_PRODUCT_TEAM`, Triage role on the repo) can comment `/ai merge` or add `ai:automerge` on an AI pull request into `develop`. That counts as "someone stands behind it", but every other rule above still applies, so they can't skip the reviewer, merge a human branch, or merge anything large or sensitive. Once it's on `develop`, staging deploys by itself. They can't use `/ai merge` or `/ai deploy production` on the release PR: production stays with `@devs` and the Deploy Gate.
 

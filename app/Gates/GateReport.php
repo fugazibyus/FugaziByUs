@@ -13,7 +13,13 @@ final class GateReport
 
     public const DEPLOY_MARKER = '<!-- deploy-gate -->';
 
-    public static function render(string $gate, Decision $decision, string $sha, string $trigger, ?string $note = null): string
+    /** Remembers a `/ai merge` request across runs: `<!-- merge-request: @login sha -->`. */
+    private const REQUEST_PATTERN = '/<!-- merge-request: @([A-Za-z0-9-]+(?:\[bot\])?) ([0-9a-f]{40}) -->/';
+
+    /**
+     * @param  array{login: string, sha: string}|null  $keptRequest  a merge request still waiting on this commit
+     */
+    public static function render(string $gate, Decision $decision, string $sha, string $trigger, ?string $note = null, ?array $keptRequest = null): string
     {
         $deploy = $gate === 'deploy';
 
@@ -45,6 +51,12 @@ final class GateReport
             $lines[] = 'The gate checks again automatically.';
         }
 
+        if ($keptRequest !== null) {
+            $lines[] = '';
+            $lines[] = "@{$keptRequest['login']}'s request to merge still stands: the gate merges once these checks pass, unless someone pushes new commits.";
+            $lines[] = "<!-- merge-request: @{$keptRequest['login']} {$keptRequest['sha']} -->";
+        }
+
         if ($note !== null) {
             $lines[] = '';
             $lines[] = $note;
@@ -54,6 +66,16 @@ final class GateReport
         $lines[] = '<sub>Checked commit '.substr($sha, 0, 7).' at '.CarbonImmutable::now('UTC')->format('Y-m-d H:i').' UTC · trigger: '.$trigger.' · rules: <code>app/Gates/'.($deploy ? 'DeployPolicy' : 'MergePolicy').'.php</code></sub>';
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * The merge request a previous run kept in the gate comment, if any.
+     *
+     * @return array{login: string, sha: string}|null
+     */
+    public static function keptRequest(string $body): ?array
+    {
+        return preg_match(self::REQUEST_PATTERN, $body, $m) === 1 ? ['login' => $m[1], 'sha' => $m[2]] : null;
     }
 
     /**

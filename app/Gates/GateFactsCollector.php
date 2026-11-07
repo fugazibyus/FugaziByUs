@@ -38,6 +38,11 @@ class GateFactsCollector
     {
         $pr = $this->github->pullRequest($number);
         $headSha = (string) $pr['head']['sha'];
+
+        if ($requestedBy === null) {
+            $requestedBy = $this->keptRequester($number, $headSha, (string) $pr['base']['ref']);
+            $requestedVia = $requestedBy !== null ? '`/ai merge`, still standing' : null;
+        }
         $issueNumber = preg_match(self::CLOSES, (string) ($pr['body'] ?? ''), $m) ? (int) $m[1] : null;
         $issue = $issueNumber !== null ? $this->github->issue($issueNumber) : null;
         $reviews = $this->github->reviews($number);
@@ -146,6 +151,37 @@ class GateFactsCollector
         }
 
         return null;
+    }
+
+    /**
+     * Who asked to merge in an earlier run that had to wait or update the branch first.
+     *
+     * The request covers the commit they asked about. It still counts if the head is that
+     * commit, or the gate's own merge of the base branch into it (first parent = that commit,
+     * second parent already on the base branch). Anyone else's push makes it lapse.
+     */
+    private function keptRequester(int $number, string $headSha, string $base): ?string
+    {
+        $body = $this->github->gateComment($number, GateReport::MERGE_MARKER);
+        $request = $body !== null ? GateReport::keptRequest($body) : null;
+
+        if ($request === null) {
+            return null;
+        }
+
+        if ($request['sha'] === $headSha) {
+            return $request['login'];
+        }
+
+        $parents = array_column($this->github->commit($headSha)['parents'] ?? [], 'sha');
+
+        if (count($parents) !== 2 || $parents[0] !== $request['sha']) {
+            return null;
+        }
+
+        $status = $this->github->compare((string) $parents[1], $base)['status'] ?? null;
+
+        return in_array($status, ['ahead', 'identical'], true) ? $request['login'] : null;
     }
 
     /**
