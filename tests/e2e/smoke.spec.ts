@@ -57,6 +57,38 @@ test('the contact page shows its heading and title', async ({ page }) => {
     await expect(page).toHaveTitle(/^Contact - /);
 });
 
+test('the header menu links to the contact page as "Contact Us"', async ({
+    page,
+    isMobile,
+}) => {
+    await page.goto('/');
+    if (isMobile) {
+        await page.getByRole('button', { name: 'Open menu' }).click();
+    }
+    const menu = page.getByRole('navigation', {
+        name: isMobile ? 'Mobile' : 'Main',
+    });
+    await expect(menu.getByRole('link', { name: 'Contact' })).toHaveText(
+        'Contact Us',
+    );
+
+    await menu.getByRole('link', { name: 'Contact Us', exact: true }).click();
+    await expect(page).toHaveURL(/\/contact$/);
+    await expect(page).toHaveTitle(/^Contact - /);
+    await expect(
+        page
+            .getByRole('navigation', { name: 'Footer' })
+            .getByRole('link', { name: 'Contact', exact: true }),
+    ).toBeVisible();
+
+    if (!isMobile) {
+        // The desktop menu highlights the page you're on.
+        await expect(
+            menu.getByRole('link', { name: 'Contact Us', exact: true }),
+        ).toHaveClass(/(^|\s)bg-accent(\s|$)/);
+    }
+});
+
 test('the contact form sends a message', async ({ page }) => {
     await page.goto('/contact');
     await page.getByLabel('Your name').fill('Smoke Test');
