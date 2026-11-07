@@ -395,3 +395,21 @@ Rough running cost: about $29/month in DigitalOcean (2 Droplets + registry). Ant
 - Your timezone and deploy window for `AI_AUTODEPLOY_PRODUCTION=business-hours`.
 - When to allow migrations to auto-merge (suggest: once the flow has run cleanly for a few weeks).
 - Whether to move the Merge Gate to the "report, let GitHub merge" route in §6b (suggest: start with shadow mode).
+
+---
+
+## 13. If we started again
+
+> **Status:** hindsight, not a to-do list. What runs today is described in §6a. These are the choices we'd make differently if we built the merge and deploy setup from scratch, so reviewers can see them. Points 2 and 6 are worth doing even if nothing else changes.
+
+**What we'd keep:** merge rules as deterministic, tested code (never a prompt), separate GitHub identities for the agents and the gate, issue/PR/Slack text treated as untrusted, the kill switch, the audit trail, `--dry-run`, gate workflows that run from the default branch and never from PR code, and the per-session and daily spend limits.
+
+**What we'd do differently:**
+
+1. **GitHub's own features first, custom code only for the gaps.** Rulesets on `develop` and `main` with **no bypass actors**, required checks (`CI`, `Guardrails`, `AI Review`, `Merge Gate`), CODEOWNERS on sensitive paths, and auto-merge or a merge queue so GitHub always does the merge. This is the §6b route from day one.
+2. **Every input is a check on the commit.** The reviewer agent posts an `AI Review` check run on the commit it reviewed, so "reviewed this exact commit" is enforced by GitHub instead of by gate code. The `Merge Gate` check then covers only what GitHub can't express: who asked, issue-reporter opt-ins, size, hold labels and `AI_AUTOMERGE_MODE`.
+3. **A config-based tool for the simple rules.** Size, path and label rules fit a tool like policy-bot or Mergify. Our own PHP would handle only the "who is asking" rules.
+4. **Automation apart from the website.** Fine inside the Laravel app for this demo. In a real product it would live in its own folder with its own `composer.json` (for example `tools/gates/`), so a website dependency update can't break merging, the gate isn't deployed to the web servers, and its tests run on their own.
+5. **GitHub Environments for deploys.** Staging deploys on every merge into `develop`, as now. Production uses a **custom deployment protection rule** (GitHub's built-in way for an App to approve or reject a deployment) for the time window, the staging soak and the migration rules, so the Deploy Gate never merges into `main` itself.
+6. **Fewer labels as state.** Labels like `ai:pr-open`, `ai:automerged` and `ai:go` both signal people and track progress, which lets workflows step on each other. Check runs and the PR's own state (open, merged, draft) would be the source of truth, and labels would be kept for **human decisions**: `ai:automerge`, `blocked`, `allow-sensitive-paths`.
+7. **A different build order.** (1) Agents open PRs and only humans merge. (2) The gate runs in shadow mode, posting what it _would_ do, compared with what humans did. (3) Auto-merge small `ai/*` PRs. (4) Only then automate production deploys. Slower to show off, but each step has evidence that the last one worked.
