@@ -257,7 +257,7 @@ class GateCommandsTest extends TestCase
 
         $this->artisan('gate:merge', ['pr' => 6, '--dry-run' => true])
             ->expectsOutputToContain('Merge Gate decision: refuse')
-            ->expectsOutputToContain('The issue was reported by a non-developer.')
+            ->expectsOutputToContain('The issue was reported by someone outside @devs and @product.')
             ->assertSuccessful();
     }
 
