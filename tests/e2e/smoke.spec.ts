@@ -78,6 +78,19 @@ test('the contact form marks its required fields', async ({ page }) => {
     await expect(page.locator('form').getByTestId('required-mark')).toHaveCount(
         5,
     );
+
+    // The note sits below the fields, on the submit button's row, to its left,
+    // and the button stays on the right.
+    const form = await page.locator('form').boundingBox();
+    const note = await page.getByTestId('required-fields-note').boundingBox();
+    const submit = await page.getByTestId('contact-submit').boundingBox();
+    const message = await page.getByLabel('Message').boundingBox();
+    expect(note!.y).toBeGreaterThan(message!.y + message!.height);
+    expect(note!.y + note!.height / 2).toBeGreaterThan(submit!.y);
+    expect(note!.y + note!.height / 2).toBeLessThan(submit!.y + submit!.height);
+    expect(note!.x).toBeCloseTo(form!.x, 0);
+    expect(note!.x + note!.width).toBeLessThan(submit!.x);
+    expect(submit!.x + submit!.width).toBeCloseTo(form!.x + form!.width, 0);
 });
 
 test('contact FAQ answers open and close by mouse and keyboard', async ({
