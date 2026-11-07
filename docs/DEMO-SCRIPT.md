@@ -26,7 +26,7 @@ So a request reaches staging in about **15–20 minutes**, which is why Act 2 st
 - [ ] **Budget:** today's spend is well under `AI_DAILY_BUDGET_USD` (homepage widget). A demo uses a few dollars.
 - [ ] **Staging and production healthy:** `/up` returns 200 and `/version` shows the expected commits.
 - [ ] **Slack:** the GitHub app and the Fugazi bot are in `#fugazi-features`, `#fugazi-ai-activity`, `#fugazi-reviews` and `#fugazi-deploys`. Post a test message so the channels are on screen.
-- [ ] **Designer account:** for Act 4, a GitHub account that is not a repository collaborator (or a designer who isn't in `@devs`), able to open issues.
+- [ ] **Designer account:** for Act 4, a GitHub account that is not a repository collaborator (or a designer who isn't in `@devs` or `@product`: a `@product` member's issue now merges to staging on its own), able to open issues.
 - [ ] **Rehearse once** with a throwaway request and keep its PR as the fallback (see [If something goes wrong](#if-something-goes-wrong)).
 
 ## The morning of
@@ -86,7 +86,7 @@ Move on; come back to it in Act 3 and at the end.
 **Show:** a second issue, from the designer account.
 
 1. The designer opens a Feature issue (GitHub → New issue → Feature), for example "Make the footer links slightly larger on mobile."
-2. Triage runs the same way. The developer agent can build it, but this time the **Merge Gate refuses** to merge on its own: "The issue was reported by a non-developer. A developer must add `ai:automerge` first." The PR waits in `#fugazi-reviews`.
+2. Triage runs the same way. The developer agent can build it, but this time the **Merge Gate refuses** to merge on its own: "The issue was reported by someone outside @devs and @product. A developer or product member must add `ai:automerge` or comment `/ai merge` first." The PR waits in `#fugazi-reviews`.
 3. "That's the rule we chose: requests from outside the developer team always get a human review before they merge. A developer can opt one in with a label."
 
 If there isn't time to wait for the PR, show the refusal on the rehearsal PR instead.

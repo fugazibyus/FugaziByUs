@@ -133,7 +133,7 @@ class GateCommandsTest extends TestCase
 
         $this->artisan('gate:merge', ['pr' => 6, '--dry-run' => true])
             ->expectsOutputToContain('Merge Gate decision: refuse')
-            ->expectsOutputToContain('The issue was reported by a non-developer. A developer or product member must add `ai:automerge` or comment `/ai merge` first.')
+            ->expectsOutputToContain('The issue was reported by someone outside @devs and @product. A developer or product member must add `ai:automerge` or comment `/ai merge` first.')
             ->assertSuccessful();
     }
 
@@ -145,6 +145,18 @@ class GateCommandsTest extends TestCase
             ->expectsOutputToContain('Merge Gate decision: merge')
             ->expectsOutputToContain('@sgoodwin10 opted in with `ai:automerge`.')
             ->assertSuccessful();
+    }
+
+    public function test_the_gate_merges_an_approved_fix_for_a_product_members_issue_on_its_own(): void
+    {
+        $this->github['GET /issues/2']['user']['login'] = 'a-pm';
+
+        $this->artisan('gate:merge', ['pr' => 6, '--trigger' => 'review'])
+            ->expectsOutputToContain('Merge Gate decision: merge')
+            ->expectsOutputToContain('Issue #2 was reported by @a-pm from @product.')
+            ->assertSuccessful();
+
+        Http::assertSent(fn (Request $r) => $r->method() === 'PUT' && str_ends_with($r->url(), '/pulls/6/merge'));
     }
 
     public function test_ai_automerge_from_a_product_member_lets_the_gate_merge_a_designers_issue(): void

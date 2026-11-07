@@ -39,7 +39,7 @@ return [
 
     // ---- Merge Gate ----------------------------------------------------------------------
 
-    // off · devs-only (issue raised or opted in by a developer) · all
+    // off · devs-only (issue raised or opted in by a @devs or @product member) · all
     'automerge_mode' => env('AI_AUTOMERGE_MODE') ?: 'devs-only',
 
     // Largest size label that may merge automatically: s, m or l.

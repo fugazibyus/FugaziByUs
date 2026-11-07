@@ -360,7 +360,7 @@ export const labelGroups: { title: string; rows: Row[] }[] = [
             },
             {
                 term: 'ai:automerge',
-                detail: 'Developers or product: let the Merge Gate merge a non-developer’s request',
+                detail: 'Developers or product: let the Merge Gate merge an outside reporter’s request',
             },
             {
                 term: 'ai:no-automerge',

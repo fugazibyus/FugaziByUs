@@ -5,15 +5,15 @@
 
 **Decisions locked in**
 
-| Topic             | Decision                                                                                                                                                                                                                                                   |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stack             | Laravel (latest stable) + Inertia + Vue 3 (TypeScript) + Tailwind 4, MySQL 8.4, Nginx, PHP-FPM 8.4                                                                                                                                                         |
-| Containers        | `app` (php-fpm), `db` (mysql), `nginx` + support containers from the same images: `queue`, `scheduler`, `vite` (local only), `mailpit` (local only), `certbot` (hosted only)                                                                               |
-| Orchestrator      | **Hybrid**: GitHub Actions start agent sessions; the Laravel app receives Slack + Anthropic webhooks, stores metrics, sends Slack alerts                                                                                                                   |
-| Hosting           | DigitalOcean: **staging Droplet** (`develop`) + **production Droplet** (`main`), images in DO Container Registry                                                                                                                                           |
-| Agents            | Claude Managed Agents, defined as files in the repo and synced with `ant apply`; the same prompt files generate local Claude Code subagents                                                                                                                |
-| Domain            | Day one: free `sslip.io` hostname per Droplet (real HTTPS, works immediately). Later: real domain by changing one secret                                                                                                                                   |
-| AI merge & deploy | **AI can merge and deploy**, through a deterministic **Merge Gate** and **Deploy Gate** (see §6a). Issues reported by non-developers still stop before merge unless a developer opts them in. Switches let you turn this down to "humans only" at any time |
+| Topic             | Decision                                                                                                                                                                                                                                                                     |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stack             | Laravel (latest stable) + Inertia + Vue 3 (TypeScript) + Tailwind 4, MySQL 8.4, Nginx, PHP-FPM 8.4                                                                                                                                                                           |
+| Containers        | `app` (php-fpm), `db` (mysql), `nginx` + support containers from the same images: `queue`, `scheduler`, `vite` (local only), `mailpit` (local only), `certbot` (hosted only)                                                                                                 |
+| Orchestrator      | **Hybrid**: GitHub Actions start agent sessions; the Laravel app receives Slack + Anthropic webhooks, stores metrics, sends Slack alerts                                                                                                                                     |
+| Hosting           | DigitalOcean: **staging Droplet** (`develop`) + **production Droplet** (`main`), images in DO Container Registry                                                                                                                                                             |
+| Agents            | Claude Managed Agents, defined as files in the repo and synced with `ant apply`; the same prompt files generate local Claude Code subagents                                                                                                                                  |
+| Domain            | Day one: free `sslip.io` hostname per Droplet (real HTTPS, works immediately). Later: real domain by changing one secret                                                                                                                                                     |
+| AI merge & deploy | **AI can merge and deploy**, through a deterministic **Merge Gate** and **Deploy Gate** (see §6a). Issues reported by anyone outside `@devs` and `@product` still stop before merge unless one of them opts in. Switches let you turn this down to "humans only" at any time |
 
 **About the domain question:** Droplets don't get a hostname — only an IP (App Platform gives `*.ondigitalocean.app`, but it doesn't fit the separate-containers requirement). `sslip.io` turns any IP into a hostname, e.g. `staging.164-90-12-34.sslip.io` resolves to `164.90.12.34`. Let's Encrypt issues real certificates for it, so HTTPS, Slack webhooks and Anthropic webhooks all work straight away. When you buy a domain, change `APP_DOMAIN` in the GitHub environment and redeploy.
 
@@ -146,7 +146,7 @@ Rules enforced by GitHub rulesets: nobody pushes directly to `main`/`develop`. P
 4. **Develop → PR → CI → (debugger) → reviewer.** Status labels move along: `ai:in-progress` → `ai:pr-open` → `ready-for-review`.
 5. **Merge.** The Merge Gate checks the PR (§6a).
     - **Eligible:** the gate merges it into `develop` (`ai:automerged`) and staging deploys.
-    - **Not eligible:** the PR is labelled `ready-for-review` and a dev is DM'd to review and merge. **Issues reported by non-developers always land here** unless a dev or `@product` member adds `ai:automerge` or comments `/ai merge`.
+    - **Not eligible:** the PR is labelled `ready-for-review` and a dev is DM'd to review and merge. **Issues reported by anyone outside `@devs` and `@product` always land here** unless a dev or `@product` member adds `ai:automerge` or comments `/ai merge`.
     - Either way the issue auto-closes on merge, and Slack DMs the reporter.
 6. **Ship.** The release agent bundles what's on `develop` into a release PR. The Deploy Gate decides whether the AI can merge it and deploy production, or whether a dev must approve.
 
@@ -180,16 +180,16 @@ Both gates are GitHub Actions workflows that hold a **GitHub App** token (`Fugaz
 
 **Policy switches** (repo variables, editable in GitHub or with the **AI · pause and resume** workflow):
 
-| Variable                   | Values                                                                                          | Default          |
-| -------------------------- | ----------------------------------------------------------------------------------------------- | ---------------- |
-| `AI_AUTOMERGE_MODE`        | `off` · `devs-only` (issue raised or approved by a `@devs` member) · `all` (non-dev issues too) | `devs-only`      |
-| `AI_AUTODEPLOY_STAGING`    | `on` / `off`                                                                                    | `on`             |
-| `AI_AUTODEPLOY_PRODUCTION` | `off` · `business-hours` (Mon–Thu 09:00–16:00, your timezone) · `on`                            | `business-hours` |
-| `AI_MAX_AUTOMERGE_SIZE`    | `s` / `m` / `l`                                                                                 | `m`              |
+| Variable                   | Values                                                                                                     | Default          |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------- |
+| `AI_AUTOMERGE_MODE`        | `off` · `devs-only` (issue raised or approved by a `@devs` or `@product` member) · `all` (anyone's issues) | `devs-only`      |
+| `AI_AUTODEPLOY_STAGING`    | `on` / `off`                                                                                               | `on`             |
+| `AI_AUTODEPLOY_PRODUCTION` | `off` · `business-hours` (Mon–Thu 09:00–16:00, your timezone) · `on`                                       | `business-hours` |
+| `AI_MAX_AUTOMERGE_SIZE`    | `s` / `m` / `l`                                                                                            | `m`              |
 
 **Merge Gate: a PR into `develop` auto-merges only if ALL of the following hold:**
 
-1. The mode allows it. Under `devs-only`, the issue was opened by a `@devs` member, or a `@devs` or `@product` member added `ai:automerge` or commented `/ai merge`. Other issues (designers, outside reporters) need that explicit opt-in; `ai:go` only starts the agent and never approves a merge.
+1. The mode allows it. Under `devs-only`, the issue was opened by a `@devs` or `@product` member, or one of them added `ai:automerge` or commented `/ai merge`. Other issues (designers, outside reporters) need that explicit opt-in; `ai:go` only starts the agent and never approves a merge.
 2. The branch is `ai/*`. Human branches merge only by a human, or when a dev comments `/ai merge`.
 3. All CI checks are green (lint, static analysis, types, tests, build, Playwright smoke, guardrails).
 4. The reviewer agent's latest verdict is `approve`, risk `low` or `medium`, with no unresolved blocking comments, and it reviewed the current head commit.
