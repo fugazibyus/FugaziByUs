@@ -27,6 +27,15 @@ class GateMergeCommand extends Command
         $number = (int) $this->argument('pr');
         try {
             $github = GitHub::fromConfig();
+
+            // Closing or merging still fires label events (the gate's own `ai:automerged`,
+            // for one). Leave the PR and its final gate comment alone.
+            if (($github->pullRequest($number)['state'] ?? null) !== 'open') {
+                $this->components->info("#{$number} is closed; the Merge Gate has nothing to do.");
+
+                return self::SUCCESS;
+            }
+
             $collector = new GateFactsCollector($github);
             $requestedBy = $this->option('comment')
                 ? $collector->requesterFromComment($number, (int) $this->option('comment'), 'merge')

@@ -133,6 +133,30 @@ class GateCommandsTest extends TestCase
             && str_contains($r['body'], "The reviewer's verdict is `request-changes`."));
     }
 
+    public function test_the_merge_gate_leaves_a_merged_pull_request_and_its_comment_alone(): void
+    {
+        // e.g. the gate's own `ai:automerged` label starts one more run after it merged.
+        $this->github['GET /pulls/6']['state'] = 'closed';
+        $this->github['GET /pulls/6']['merged'] = true;
+
+        $this->artisan('gate:merge', ['pr' => 6, '--trigger' => 'pull_request_target'])
+            ->expectsOutputToContain('#6 is closed; the Merge Gate has nothing to do.')
+            ->assertSuccessful();
+
+        Http::assertNotSent(fn (Request $r) => $r->method() !== 'GET');
+    }
+
+    public function test_the_deploy_gate_leaves_a_merged_release_pull_request_and_its_comment_alone(): void
+    {
+        $this->github['GET /pulls/7'] = ['number' => 7, 'state' => 'closed', 'merged' => true];
+
+        $this->artisan('gate:deploy', ['pr' => 7, '--trigger' => 'pull_request_target'])
+            ->expectsOutputToContain('#7 is closed; the Deploy Gate has nothing to do.')
+            ->assertSuccessful();
+
+        Http::assertNotSent(fn (Request $r) => $r->method() !== 'GET');
+    }
+
     public function test_ai_go_on_a_designers_issue_starts_the_work_but_does_not_let_the_gate_merge(): void
     {
         $this->givenADesignersIssueLabelledByADeveloper('ai:go');
