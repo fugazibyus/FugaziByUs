@@ -49,6 +49,14 @@ test('wrong login details show an error', async ({ page }) => {
     ).toBeVisible();
 });
 
+test('the contact page shows its heading and title', async ({ page }) => {
+    await page.goto('/contact');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+        'Get in touch with us',
+    );
+    await expect(page).toHaveTitle(/^Contact - /);
+});
+
 test('the contact form sends a message', async ({ page }) => {
     await page.goto('/contact');
     await page.getByLabel('Your name').fill('Smoke Test');
