@@ -55,9 +55,7 @@ const knownName = computed(() =>
             class="mx-auto grid max-w-6xl gap-12 px-4 py-20 sm:px-6 lg:grid-cols-5"
         >
             <div class="lg:col-span-2">
-                <h1 class="text-4xl font-bold tracking-tight">
-                    Get in touch with us
-                </h1>
+                <h1 class="text-4xl font-bold tracking-tight">Get in touch</h1>
                 <p class="mt-4 text-lg text-muted-foreground">
                     Questions about the demo, the AI workflow, or how it could
                     work for your team? Send us a message.
