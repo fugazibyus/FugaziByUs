@@ -29,7 +29,7 @@ const mobileOpen = ref(false);
 const links = [
     { title: 'Home', href: home() },
     { title: 'AI Workflow', href: aiWorkflow() },
-    { title: 'Contact', href: contact() },
+    { title: 'Contact Us', href: contact() },
 ];
 
 function openFromMobile(modal: 'login' | 'register'): void {
