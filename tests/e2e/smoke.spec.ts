@@ -52,7 +52,7 @@ test('wrong login details show an error', async ({ page }) => {
 test('the contact page shows its heading and title', async ({ page }) => {
     await page.goto('/contact');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-        'Get in touch with us',
+        'Get in touch',
     );
     await expect(page).toHaveTitle(/^Contact - /);
 });
