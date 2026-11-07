@@ -67,6 +67,7 @@ class GateFactsCollector
             optedInBy: $this->optedInBy(array_filter([$number, $issueNumber]), $labels),
             requestedBy: $requestedBy,
             requesterIsDev: $requestedBy !== null && $this->github->isDev($requestedBy),
+            requesterIsProduct: $requestedBy !== null && $this->github->isProduct($requestedBy),
             requestedVia: $requestedVia,
             sessions: $this->sessions([(string) ($pr['body'] ?? ''), ...array_map(fn (array $r) => (string) $r['body'], $reviews)]),
         );
@@ -148,10 +149,11 @@ class GateFactsCollector
     }
 
     /**
-     * The developer who most recently added `ai:automerge` (still present) to the PR or its issue.
+     * The developer or product member who most recently added `ai:automerge` (still present)
+     * to the PR or its issue.
      *
-     * `ai:go` doesn't count: it only lets the agent start work. A developer must opt in to
-     * merging separately, so a designer's or PM's ticket can't merge just because work began.
+     * `ai:go` doesn't count: it only lets the agent start work. Someone must opt in to merging
+     * separately, so a designer's ticket can't merge just because work began.
      *
      * @param  array<int>  $numbers
      * @param  list<string>  $labels
@@ -169,7 +171,7 @@ class GateFactsCollector
                 $label = $event['label']['name'] ?? null;
                 $actor = $event['actor']['login'] ?? null;
 
-                if ($event['event'] === 'labeled' && $label === 'ai:automerge' && $this->github->isDev($actor)) {
+                if ($event['event'] === 'labeled' && $label === 'ai:automerge' && ($this->github->isDev($actor) || $this->github->isProduct($actor))) {
                     $by = $actor;
                 }
             }

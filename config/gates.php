@@ -26,6 +26,11 @@ return [
     // Members of this org team are "developers": they can opt issues in and ask the gates.
     'devs_team' => env('GATE_DEVS_TEAM') ?: 'devs',
 
+    // Members of this org team may ship AI work to staging: their `/ai merge` or `ai:automerge`
+    // vouches for an AI pull request into develop, but every review, size and path rule still
+    // applies. They can't merge other branches or anything into main (production).
+    'product_team' => env('GATE_PRODUCT_TEAM') ?: 'product',
+
     'base_branch' => 'develop',
     'production_branch' => 'main',
 
