@@ -111,13 +111,13 @@ All agents default to `claude-opus-5-5`. The model is one line in each file's fr
 
 **Commands that drive the agents**
 
-| Where                                | Commands                                                                                                                                                                                              |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GitHub comments (collaborators only) | `/ai triage`, `/ai develop`, `/ai fix`, `/ai review`, `/ai research`, `/ai stop`, `/ai merge` (dev-only: ask the Merge Gate to merge now), `/ai release`, `/ai deploy staging\|production` (dev-only) |
-| Slack                                | **⋮ → Create issue** on any message, or `/github open fugazibyus/FugaziByUs` (GitHub's app for Slack). Alerts arrive in the `#fugazi-*` channels                                                      |
-| Local Claude Code                    | `/triage 12`, `/develop 12`, `/review 34`, `/debug`, `/research "topic"`, `/release` (same prompts, run on your own working copy)                                                                     |
-| Local terminal → cloud               | `make ai-run agent=developer issue=12` (starts the same Managed Agent remotely), `ant beta:sessions connect` to watch live                                                                            |
-| Manual deploy                        | Actions → "Deploy" → choose env + ref, or `make deploy env=staging` (break-glass over SSH)                                                                                                            |
+| Where                                | Commands                                                                                                                                                                                                                                         |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GitHub comments (collaborators only) | `/ai triage`, `/ai develop`, `/ai fix`, `/ai review`, `/ai research`, `/ai stop`, `/ai merge` (devs: ask the Merge Gate to merge now; `@product`: ship an approved AI PR to staging), `/ai release`, `/ai deploy staging\|production` (dev-only) |
+| Slack                                | **⋮ → Create issue** on any message, or `/github open fugazibyus/FugaziByUs` (GitHub's app for Slack). Alerts arrive in the `#fugazi-*` channels                                                                                                 |
+| Local Claude Code                    | `/triage 12`, `/develop 12`, `/review 34`, `/debug`, `/research "topic"`, `/release` (same prompts, run on your own working copy)                                                                                                                |
+| Local terminal → cloud               | `make ai-run agent=developer issue=12` (starts the same Managed Agent remotely), `ant beta:sessions connect` to watch live                                                                                                                       |
+| Manual deploy                        | Actions → "Deploy" → choose env + ref, or `make deploy env=staging` (break-glass over SSH)                                                                                                                                                       |
 
 ---
 
@@ -146,7 +146,7 @@ Rules enforced by GitHub rulesets: nobody pushes directly to `main`/`develop`. P
 4. **Develop → PR → CI → (debugger) → reviewer.** Status labels move along: `ai:in-progress` → `ai:pr-open` → `ready-for-review`.
 5. **Merge.** The Merge Gate checks the PR (§6a).
     - **Eligible:** the gate merges it into `develop` (`ai:automerged`) and staging deploys.
-    - **Not eligible:** the PR is labelled `ready-for-review` and a dev is DM'd to review and merge. **Issues reported by non-developers always land here** unless a dev adds `ai:automerge`.
+    - **Not eligible:** the PR is labelled `ready-for-review` and a dev is DM'd to review and merge. **Issues reported by non-developers always land here** unless a dev or `@product` member adds `ai:automerge` or comments `/ai merge`.
     - Either way the issue auto-closes on merge, and Slack DMs the reporter.
 6. **Ship.** The release agent bundles what's on `develop` into a release PR. The Deploy Gate decides whether the AI can merge it and deploy production, or whether a dev must approve.
 
@@ -154,7 +154,7 @@ Rules enforced by GitHub rulesets: nobody pushes directly to `main`/`develop`. P
 
 - Type: `type:bug`, `type:feature`, `type:research`, `type:chore`
 - Flow: `flow:ai`, `flow:human`
-- Control: `ai:go`, `ai:stop`, `ai:review`, `ai:automerge` (dev opts a PR/issue into AI merge), `ai:no-automerge` (dev forces human merge), `deploy:hold` (blocks AI prod deploy), `allow-sensitive-paths`
+- Control: `ai:go`, `ai:stop`, `ai:review`, `ai:automerge` (dev or `@product` opts a PR/issue into AI merge), `ai:no-automerge` (dev forces human merge), `deploy:hold` (blocks AI prod deploy), `allow-sensitive-paths`
 - Status: `needs-triage`, `ai:needs-info`, `ai:in-progress`, `ai:pr-open`, `ai:needs-human`, `ai:failed`, `ready-for-review`, `ai:automerged`, `blocked`
 - Meta: `priority:low|medium|high`, `size:s|m|l`, `source:github|slack`
 
@@ -189,7 +189,7 @@ Both gates are GitHub Actions workflows that hold a **GitHub App** token (`Fugaz
 
 **Merge Gate: a PR into `develop` auto-merges only if ALL of the following hold:**
 
-1. The mode allows it. Under `devs-only`, the issue was opened by a `@devs` member, or a dev added `ai:automerge`. Non-dev issues (designers, PMs) need that explicit dev opt-in; `ai:go` only starts the agent and never approves a merge.
+1. The mode allows it. Under `devs-only`, the issue was opened by a `@devs` member, or a `@devs` or `@product` member added `ai:automerge` or commented `/ai merge`. Other issues (designers, outside reporters) need that explicit opt-in; `ai:go` only starts the agent and never approves a merge.
 2. The branch is `ai/*`. Human branches merge only by a human, or when a dev comments `/ai merge`.
 3. All CI checks are green (lint, static analysis, types, tests, build, Playwright smoke, guardrails).
 4. The reviewer agent's latest verdict is `approve`, risk `low` or `medium`, with no unresolved blocking comments, and it reviewed the current head commit.

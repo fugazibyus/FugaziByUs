@@ -12,13 +12,14 @@ use Illuminate\Support\Facades\Http;
  */
 class GitHub
 {
-    /** @var array<string, bool> */
-    private array $devs = [];
+    /** @var array<string, bool> "team/login" => active member */
+    private array $members = [];
 
     public function __construct(
         private readonly string $token,
         private readonly string $repository,
         private readonly string $devsTeam = 'devs',
+        private readonly string $productTeam = 'product',
     ) {}
 
     public static function fromConfig(): self
@@ -29,7 +30,12 @@ class GitHub
             throw new AgentConfigurationException('No gate token. GATE_GITHUB_TOKEN must hold a Fugazi Merge Gate App token (the gate workflows mint one).');
         }
 
-        return new self($token, (string) config('gates.repository'), (string) config('gates.devs_team'));
+        return new self(
+            $token,
+            (string) config('gates.repository'),
+            (string) config('gates.devs_team'),
+            (string) config('gates.product_team'),
+        );
     }
 
     /** @return array<string, mixed> */
@@ -132,12 +138,23 @@ class GitHub
     /** Is this login an active member of the developers team? */
     public function isDev(?string $login): bool
     {
+        return $this->isMember($this->devsTeam, $login);
+    }
+
+    /** Is this login an active member of the product team? They may ship AI work to staging. */
+    public function isProduct(?string $login): bool
+    {
+        return $this->isMember($this->productTeam, $login);
+    }
+
+    private function isMember(string $team, ?string $login): bool
+    {
         if ($login === null || $login === '' || str_ends_with($login, '[bot]')) {
             return false;
         }
 
-        return $this->devs[$login] ??= $this->http()
-            ->get("/orgs/{$this->owner()}/teams/{$this->devsTeam}/memberships/{$login}")
+        return $this->members["{$team}/{$login}"] ??= $this->http()
+            ->get("/orgs/{$this->owner()}/teams/{$team}/memberships/{$login}")
             ->json('state') === 'active';
     }
 

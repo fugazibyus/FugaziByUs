@@ -144,7 +144,26 @@ class MergePolicyTest extends TestCase
         $human = ['head' => 'feature/9-tweak', 'author' => 'sgoodwin10', 'labels' => [], 'verdict' => null, 'files' => ['composer.json']];
 
         $this->assertAction(Decision::MERGE, $this->decide($this->pr(...$human, requestedBy: 'sgoodwin10', requesterIsDev: true), mode: 'off'));
-        $this->assertAction(Decision::REFUSE, $this->decide($this->pr(head: 'feature/9-tweak', requestedBy: 'visitor', requesterIsDev: false)), 'only members of @devs');
+        $this->assertAction(Decision::REFUSE, $this->decide($this->pr(head: 'feature/9-tweak', requestedBy: 'visitor', requesterIsDev: false)), 'only members of @devs or @product');
+    }
+
+    public function test_a_product_member_can_ship_approved_ai_work_to_staging(): void
+    {
+        $product = ['reportedByDev' => false, 'requestedBy' => 'a-pm', 'requesterIsProduct' => true];
+
+        $this->assertAction(Decision::MERGE, $this->decide($this->pr(...$product)));
+        $this->assertAction(Decision::MERGE, $this->decide($this->pr(reportedByDev: false, optedInBy: 'a-pm')));
+    }
+
+    public function test_a_product_request_still_needs_every_ai_rule(): void
+    {
+        $product = ['reportedByDev' => false, 'requestedBy' => 'a-pm', 'requesterIsProduct' => true];
+
+        $this->assertAction(Decision::REFUSE, $this->decide($this->pr(...$product, head: 'feature/9-tweak')), 'Only `ai/*` branches');
+        $this->assertAction(Decision::REFUSE, $this->decide($this->pr(...$product, files: ['composer.json'])), 'sensitive paths');
+        $this->assertAction(Decision::REFUSE, $this->decide($this->pr(...$product, labels: ['size:l'])), 'above the limit');
+        $this->assertAction(Decision::REFUSE, $this->decide($this->pr(...$product), mode: 'off'), 'AI merging is off');
+        $this->assertAction(Decision::WAIT, $this->decide($this->pr(...$product, verdict: null)), "reviewer agent's verdict");
     }
 
     public function test_workflow_changes_and_failing_ci_stop_even_a_developer_request(): void

@@ -50,8 +50,13 @@ class GateCommandsTest extends TestCase
 
         Http::preventStrayRequests();
         Http::fake(function (Request $request) {
-            if (str_contains($request->url(), '/teams/devs/memberships/')) {
-                return Http::response(['state' => str_ends_with($request->url(), '/sgoodwin10') ? 'active' : null], str_ends_with($request->url(), '/sgoodwin10') ? 200 : 404);
+            // @devs is sgoodwin10; @product is a-pm.
+            foreach (['devs' => 'sgoodwin10', 'product' => 'a-pm'] as $team => $member) {
+                if (str_contains($request->url(), "/teams/{$team}/memberships/")) {
+                    $active = str_ends_with($request->url(), "/{$member}");
+
+                    return Http::response(['state' => $active ? 'active' : null], $active ? 200 : 404);
+                }
             }
 
             $path = rawurldecode((string) parse_url(str_replace(self::REPO, '', $request->url()), PHP_URL_PATH));
@@ -128,7 +133,7 @@ class GateCommandsTest extends TestCase
 
         $this->artisan('gate:merge', ['pr' => 6, '--dry-run' => true])
             ->expectsOutputToContain('Merge Gate decision: refuse')
-            ->expectsOutputToContain('The issue was reported by a non-developer. A developer must add `ai:automerge` first.')
+            ->expectsOutputToContain('The issue was reported by a non-developer. A developer or product member must add `ai:automerge` or comment `/ai merge` first.')
             ->assertSuccessful();
     }
 
@@ -138,16 +143,70 @@ class GateCommandsTest extends TestCase
 
         $this->artisan('gate:merge', ['pr' => 6, '--dry-run' => true])
             ->expectsOutputToContain('Merge Gate decision: merge')
-            ->expectsOutputToContain('@sgoodwin10 (a developer) opted in with `ai:automerge`.')
+            ->expectsOutputToContain('@sgoodwin10 opted in with `ai:automerge`.')
             ->assertSuccessful();
     }
 
-    /** Issue #2 was opened by a designer (not in @devs); developer @sgoodwin10 added the label. */
-    private function givenADesignersIssueLabelledByADeveloper(string $label): void
+    public function test_ai_automerge_from_a_product_member_lets_the_gate_merge_a_designers_issue(): void
+    {
+        $this->givenADesignersIssueLabelledByADeveloper('ai:automerge', by: 'a-pm');
+
+        $this->artisan('gate:merge', ['pr' => 6, '--dry-run' => true])
+            ->expectsOutputToContain('Merge Gate decision: merge')
+            ->expectsOutputToContain('@a-pm opted in with `ai:automerge`.')
+            ->assertSuccessful();
+    }
+
+    public function test_a_product_member_ships_an_approved_ai_pull_request_to_staging_with_an_ai_merge_comment(): void
+    {
+        $this->givenADesignersIssueLabelledByADeveloper('ai:go');
+        $this->givenAnAiMergeComment(by: 'a-pm');
+
+        $this->artisan('gate:merge', ['pr' => 6, '--comment' => 555])
+            ->expectsOutputToContain('Requested by @a-pm from @product (`/ai merge`), so the usual AI rules apply.')
+            ->expectsOutputToContain('The reviewer approved.')
+            ->assertSuccessful();
+
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/pulls/6/merge'));
+    }
+
+    public function test_a_product_member_cannot_merge_a_human_branch(): void
+    {
+        $this->github['GET /pulls/6']['head']['ref'] = 'feature/6-copy-tweak';
+        $this->givenAnAiMergeComment(by: 'a-pm');
+
+        $this->artisan('gate:merge', ['pr' => 6, '--comment' => 555])
+            ->expectsOutputToContain('Only `ai/*` branches merge automatically.')
+            ->assertSuccessful();
+
+        Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/pulls/6/merge'));
+    }
+
+    public function test_someone_outside_devs_and_product_cannot_ask_the_gate(): void
+    {
+        $this->givenAnAiMergeComment(by: 'a-designer');
+
+        $this->artisan('gate:merge', ['pr' => 6, '--comment' => 555])
+            ->expectsOutputToContain('@a-designer asked to merge, but only members of @devs or @product can.')
+            ->assertSuccessful();
+
+        Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/pulls/6/merge'));
+    }
+
+    private function givenAnAiMergeComment(string $by): void
+    {
+        $this->github['GET /issues/comments/555'] = [
+            'issue_url' => self::REPO.'/issues/6', 'body' => '/ai merge', 'user' => ['login' => $by],
+            'created_at' => now()->subMinute()->toIso8601String(),
+        ];
+    }
+
+    /** Issue #2 was opened by a designer (not in @devs or @product); $by added the label. */
+    private function givenADesignersIssueLabelledByADeveloper(string $label, string $by = 'sgoodwin10'): void
     {
         $this->github['GET /issues/2']['user']['login'] = 'a-designer';
         $this->github['GET /issues/2']['labels'][] = ['name' => $label];
-        $this->github['GET /issues/2/events'] = [['event' => 'labeled', 'label' => ['name' => $label], 'actor' => ['login' => 'sgoodwin10']]];
+        $this->github['GET /issues/2/events'] = [['event' => 'labeled', 'label' => ['name' => $label], 'actor' => ['login' => $by]]];
         $this->github['GET /issues/6/events'] = [];
     }
 
