@@ -134,7 +134,7 @@ export const commandGroups: {
             },
             {
                 term: '/ai merge',
-                detail: 'Developers: ask the Merge Gate to merge now',
+                detail: 'Developers: ask the Merge Gate to merge now. Product: ship an approved AI pull request to staging',
             },
             {
                 term: '/ai deploy production',
@@ -360,7 +360,7 @@ export const labelGroups: { title: string; rows: Row[] }[] = [
             },
             {
                 term: 'ai:automerge',
-                detail: 'Let the Merge Gate merge a non-developer’s request',
+                detail: 'Developers or product: let the Merge Gate merge a non-developer’s request',
             },
             {
                 term: 'ai:no-automerge',
