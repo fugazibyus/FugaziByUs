@@ -206,8 +206,9 @@ The gate squash-merges with a message linking the issue, the agent sessions and 
     1. `AI_AUTODEPLOY_PRODUCTION` allows it right now (business hours by default, never Fridays or weekends).
     2. Staging has been running this exact commit for ≥ 30 minutes, with smoke tests and health checks passing.
     3. Every PR in the release either auto-merged through the Merge Gate or was human-approved, and none carries `deploy:hold`.
-    4. No migrations in the release, unless a dev approved the release PR.
-    5. No production deploy in the last 60 minutes, and no failed prod deploy that hasn't been resolved.
+    4. No migrations in the release, unless a dev approved the release PR's current commit.
+    5. Every PR in the release came from an issue a `@devs` member raised, or a dev approved or merged it. Work from `@product` (or anyone else outside `@devs`) can reach staging on its own, but reaches production only after a dev approves that PR or the release PR.
+    6. No production deploy in the last 60 minutes, and no failed prod deploy that hasn't been resolved.
 - **If any check fails,** the `production` environment falls back to needing a dev's approval, and that dev gets a DM with the reasons.
 - **After deploy:** health check → automatic rollback on failure → the release agent verifies prod and posts the summary.
 

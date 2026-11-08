@@ -81,6 +81,7 @@ class DeployPolicy
         $this->checkWindow($release, $decision);
         $this->checkStaging($release, $decision);
         $this->checkReleasedPrs($release, $decision);
+        $this->checkDeveloperReview($release, $decision);
 
         $decision->check(
             ! $release->touchesMigrations || $release->devApprovals !== [],
@@ -170,6 +171,31 @@ class DeployPolicy
         $count = count($release->releasedPrs);
         $decision->check($held === [], 'No pull request in the release is on hold.', 'On hold: '.implode(', ', $held).'.');
         $decision->check($unchecked === [], "All {$count} pull request(s) were merged by a developer or by the Merge Gate.", 'Merged by something other than a developer or the Merge Gate: '.implode(', ', $unchecked).'.');
+    }
+
+    /**
+     * Anyone in @devs or @product can send AI work to staging, but only a developer can let
+     * it reach production. Work from an issue a non-developer raised needs a developer's
+     * approval, either on its own pull request or on the release pull request.
+     */
+    private function checkDeveloperReview(DeployFacts $release, Decision $decision): void
+    {
+        $unreviewed = array_map(
+            fn (array $pr) => "#{$pr['number']}".($pr['reporter'] !== null ? " from @{$pr['reporter']}" : ''),
+            array_values(array_filter($release->releasedPrs, fn (array $pr) => ! $pr['reported_by_dev'] && ! $pr['dev_reviewed'])),
+        );
+
+        if ($unreviewed === []) {
+            $decision->pass('Every pull request in the release was raised or reviewed by a developer.');
+
+            return;
+        }
+
+        $decision->check(
+            $release->devApprovals !== [],
+            'Work reported outside @devs ('.implode(', ', $unreviewed).'), approved on the release by @'.implode(', @', $release->devApprovals).'.',
+            'Not reviewed by a developer yet: '.implode(', ', $unreviewed).'. A developer must approve the release pull request.',
+        );
     }
 
     private function checkLastDeploy(DeployFacts $release, Decision $decision): void

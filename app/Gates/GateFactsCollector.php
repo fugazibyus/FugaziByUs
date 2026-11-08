@@ -90,9 +90,10 @@ class GateFactsCollector
         $compare = $this->github->compare($base, $head);
         $staging = $this->staging();
 
+        // Only approvals of the current head count: the release PR grows as more work lands on develop.
         /** @var list<string> $approvals */
         $approvals = collect($this->github->reviews($number))
-            ->filter(fn (array $r) => $r['state'] === 'APPROVED')
+            ->filter(fn (array $r) => $r['state'] === 'APPROVED' && ($r['commit_id'] ?? null) === $headSha)
             ->pluck('user.login')
             ->unique()
             ->filter(fn (string $login) => $this->github->isDev($login))
@@ -221,7 +222,7 @@ class GateFactsCollector
 
     /**
      * @param  array<string, mixed>  $compare
-     * @return list<array{number: int, merged_by: string, labels: list<string>}>
+     * @return list<array{number: int, merged_by: string, labels: list<string>, reporter: ?string, reported_by_dev: bool, dev_reviewed: bool}>
      */
     private function releasedPullRequests(array $compare, string $branch): array
     {
@@ -237,11 +238,20 @@ class GateFactsCollector
 
         return array_map(function (int $number) {
             $pr = $this->github->pullRequest($number);
+            $mergedBy = (string) ($pr['merged_by']['login'] ?? '');
+            $issueNumber = preg_match(self::CLOSES, (string) ($pr['body'] ?? ''), $m) ? (int) $m[1] : null;
+            $reporter = $issueNumber !== null
+                ? ($this->github->issue($issueNumber)['user']['login'] ?? null)
+                : ($pr['user']['login'] ?? null);
 
             return [
                 'number' => $number,
-                'merged_by' => (string) ($pr['merged_by']['login'] ?? ''),
+                'merged_by' => $mergedBy,
                 'labels' => array_column($pr['labels'], 'name'),
+                'reporter' => $reporter,
+                'reported_by_dev' => $this->github->isDev($reporter),
+                'dev_reviewed' => $this->github->isDev($mergedBy) || collect($this->github->reviews($number))
+                    ->contains(fn (array $r) => $r['state'] === 'APPROVED' && $this->github->isDev($r['user']['login'] ?? null)),
             ];
         }, array_keys($numbers));
     }
