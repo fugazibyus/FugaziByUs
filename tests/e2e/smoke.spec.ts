@@ -57,7 +57,7 @@ test('the contact page shows its heading and title', async ({ page }) => {
     await expect(page).toHaveTitle(/^Contact - /);
 });
 
-test('the header menu links to the contact page as "Contact Us"', async ({
+test('the header menu links to the contact page as "Contact"', async ({
     page,
     isMobile,
 }) => {
@@ -68,11 +68,14 @@ test('the header menu links to the contact page as "Contact Us"', async ({
     const menu = page.getByRole('navigation', {
         name: isMobile ? 'Mobile' : 'Main',
     });
-    await expect(menu.getByRole('link', { name: 'Contact' })).toHaveText(
-        'Contact Us',
-    );
+    const contactLink = menu.getByRole('link', {
+        name: 'Contact',
+        exact: true,
+    });
+    await expect(contactLink).toHaveText('Contact');
+    await expect(menu.getByText('Contact Us')).toHaveCount(0);
 
-    await menu.getByRole('link', { name: 'Contact Us', exact: true }).click();
+    await contactLink.click();
     await expect(page).toHaveURL(/\/contact$/);
     await expect(page).toHaveTitle(/^Contact - /);
     await expect(
@@ -83,9 +86,7 @@ test('the header menu links to the contact page as "Contact Us"', async ({
 
     if (!isMobile) {
         // The desktop menu highlights the page you're on.
-        await expect(
-            menu.getByRole('link', { name: 'Contact Us', exact: true }),
-        ).toHaveClass(/(^|\s)bg-accent(\s|$)/);
+        await expect(contactLink).toHaveClass(/(^|\s)bg-accent(\s|$)/);
     }
 });
 
