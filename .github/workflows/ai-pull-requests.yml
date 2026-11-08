@@ -3,6 +3,8 @@
 #   CI green on an ai/* PR  → reviewer agent (once per commit; it records a verdict for the Merge Gate)
 #   CI red on an ai/* PR    → debugger agent, at most 2 automatic attempts, then `ai:needs-human`
 #   `ai:review` added by a person → reviewer agent on any PR (human branches included)
+#   ai/* PR marked ready for review → acts on its latest CI result as above (drafts are skipped,
+#                                      so a PR that went green while a draft would otherwise wait forever)
 #
 # Draft PRs and PRs labelled ai:stop or ai:needs-human are left alone.
 # Runs from the default branch (workflow_run / pull_request_target), never from PR code.
@@ -14,9 +16,10 @@ on:
     types: [completed]
     branches: ['ai/**']
   pull_request_target:
-    types: [labeled]
+    types: [labeled, ready_for_review]
 
 permissions:
+  actions: read
   contents: read
   issues: write
   pull-requests: write
@@ -31,7 +34,8 @@ jobs:
     if: >-
       vars.AI_AGENTS != 'off' &&
       ((github.event_name == 'workflow_run' && contains(fromJSON('["success","failure"]'), github.event.workflow_run.conclusion)) ||
-       (github.event_name == 'pull_request_target' && github.event.label.name == 'ai:review' && github.event.sender.type != 'Bot'))
+       (github.event_name == 'pull_request_target' && github.event.action == 'labeled' && github.event.label.name == 'ai:review' && github.event.sender.type != 'Bot') ||
+       (github.event_name == 'pull_request_target' && github.event.action == 'ready_for_review' && startsWith(github.event.pull_request.head.ref, 'ai/')))
     runs-on: ubuntu-latest
     timeout-minutes: 3
     outputs:
@@ -49,7 +53,7 @@ jobs:
         with:
           script: |
             const MAX_DEBUG_ATTEMPTS = 2;
-            const run = context.payload.workflow_run;
+            let run = context.payload.workflow_run;
             const skip = (why) => { core.notice(`${why} – no agent started.`); core.setOutput('agent', ''); };
 
             // Find the pull request.
@@ -67,6 +71,15 @@ jobs:
             if (pr.state !== 'open') return skip(`PR #${number} is closed`);
             if (pr.head.repo?.full_name !== `${context.repo.owner}/${context.repo.repo}`) return skip(`PR #${number} comes from a fork`);
             if (hold) return skip(`PR #${number} is labelled ${hold}`);
+
+            // Marked ready for review: act on the CI run for this commit, which was skipped while it was a draft.
+            // If CI is still running, its workflow_run event starts the agent when it finishes.
+            if (context.payload.action === 'ready_for_review') {
+              const { data } = await github.rest.actions.listWorkflowRuns({ ...context.repo, workflow_id: 'ci.yml', head_sha: pr.head.sha, per_page: 1 });
+              run = data.workflow_runs[0];
+              if (run?.status !== 'completed') return skip(`CI hasn't finished on PR #${number} @ ${pr.head.sha.slice(0, 7)} yet`);
+              if (!['success', 'failure'].includes(run.conclusion)) return skip(`CI on PR #${number} ended ${run.conclusion}`);
+            }
             if (run && pr.draft) return skip(`PR #${number} is a draft`);
             if (run && pr.head.sha !== run.head_sha) return skip(`PR #${number} has newer commits than this CI run`);
 
