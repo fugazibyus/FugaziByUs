@@ -380,13 +380,13 @@ Full guide: [docs/SETUP-HOSTED.md](docs/SETUP-HOSTED.md).
 
 ### Website pages
 
-| Page             | Route                            | Contents                                                      |
-| ---------------- | -------------------------------- | ------------------------------------------------------------- |
-| Home             | `/`                              | Hero, how it works, feature cards, live AI stats widget       |
-| AI Workflow      | `/ai-workflow`                   | Handbook: agents, workflow, commands, guardrails, labels, FAQ |
-| Contact          | `/contact`                       | Contact form (rate-limited, honeypot, posts to Slack)         |
-| Account          | `/account`                       | Profile, email and password (signed-in users)                 |
-| Log in / Sign up | `?auth=login` / `?auth=register` | Modals on any page                                            |
+| Page              | Route                            | Contents                                                      |
+| ----------------- | -------------------------------- | ------------------------------------------------------------- |
+| Home              | `/`                              | Hero, how it works, feature cards, live AI stats widget       |
+| AI Workflow       | `/ai-workflow`                   | Handbook: agents, workflow, commands, guardrails, labels, FAQ |
+| Contact           | `/contact`                       | Contact form (rate-limited, honeypot, posts to Slack)         |
+| Account           | `/account`                       | Profile, email and password (signed-in users)                 |
+| Log in / Register | `?auth=login` / `?auth=register` | Modals on any page                                            |
 
 ---
 

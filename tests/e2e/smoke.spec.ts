@@ -90,6 +90,30 @@ test('the header menu links to the contact page as "Contact"', async ({
     }
 });
 
+test('the header "Register" button opens the register modal', async ({
+    page,
+    isMobile,
+}) => {
+    await page.goto('/');
+    // The desktop buttons sit in the header, the mobile ones in the ☰ menu.
+    if (isMobile) {
+        await page.getByRole('button', { name: 'Open menu' }).click();
+    }
+    const menu = isMobile ? page.getByRole('dialog') : page.getByRole('banner');
+
+    await expect(
+        menu.getByRole('button', { name: 'Log in', exact: true }),
+    ).toBeVisible();
+    await expect(menu.getByText('Sign up')).toHaveCount(0);
+
+    await menu.getByRole('button', { name: 'Register', exact: true }).click();
+    const modal = page.getByTestId('auth-modal');
+    await expect(modal).toBeVisible();
+    await expect(
+        modal.getByRole('heading', { name: 'Create your account' }),
+    ).toBeVisible();
+});
+
 test('the contact form sends a message', async ({ page }) => {
     await page.goto('/contact');
     await page.getByLabel('Your name').fill('Smoke Test');
