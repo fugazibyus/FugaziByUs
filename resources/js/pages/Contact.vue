@@ -204,7 +204,7 @@ const knownName = computed(() =>
                             data-test="contact-submit"
                         >
                             <Spinner v-if="processing" />
-                            Send message
+                            Send
                         </Button>
                     </div>
                 </Form>
