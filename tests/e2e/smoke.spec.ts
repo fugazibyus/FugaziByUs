@@ -49,12 +49,78 @@ test('wrong login details show an error', async ({ page }) => {
     ).toBeVisible();
 });
 
+test('the contact page shows its heading and title', async ({ page }) => {
+    await page.goto('/contact');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+        'Get in touch',
+    );
+    await expect(page).toHaveTitle(/^Contact - /);
+});
+
+test('the header menu links to the contact page as "Contact"', async ({
+    page,
+    isMobile,
+}) => {
+    await page.goto('/');
+    if (isMobile) {
+        await page.getByRole('button', { name: 'Open menu' }).click();
+    }
+    const menu = page.getByRole('navigation', {
+        name: isMobile ? 'Mobile' : 'Main',
+    });
+    const contactLink = menu.getByRole('link', {
+        name: 'Contact',
+        exact: true,
+    });
+    await expect(contactLink).toHaveText('Contact');
+    await expect(menu.getByText('Contact Us')).toHaveCount(0);
+
+    await contactLink.click();
+    await expect(page).toHaveURL(/\/contact$/);
+    await expect(page).toHaveTitle(/^Contact - /);
+    await expect(
+        page
+            .getByRole('navigation', { name: 'Footer' })
+            .getByRole('link', { name: 'Contact', exact: true }),
+    ).toBeVisible();
+
+    if (!isMobile) {
+        // The desktop menu highlights the page you're on.
+        await expect(contactLink).toHaveClass(/(^|\s)bg-accent(\s|$)/);
+    }
+});
+
+test('the header "Register" button opens the register modal', async ({
+    page,
+    isMobile,
+}) => {
+    await page.goto('/');
+    // The desktop buttons sit in the header, the mobile ones in the ☰ menu.
+    if (isMobile) {
+        await page.getByRole('button', { name: 'Open menu' }).click();
+    }
+    const menu = isMobile ? page.getByRole('dialog') : page.getByRole('banner');
+
+    await expect(
+        menu.getByRole('button', { name: 'Log in', exact: true }),
+    ).toBeVisible();
+    await expect(menu.getByText('Sign up')).toHaveCount(0);
+
+    await menu.getByRole('button', { name: 'Register', exact: true }).click();
+    const modal = page.getByTestId('auth-modal');
+    await expect(modal).toBeVisible();
+    await expect(
+        modal.getByRole('heading', { name: 'Create your account' }),
+    ).toBeVisible();
+});
+
 test('the contact form sends a message', async ({ page }) => {
     await page.goto('/contact');
     await page.getByLabel('Your name').fill('Smoke Test');
     await page.getByLabel('Email address').fill(unique());
     await page.getByLabel('Subject').fill('Smoke test');
     await page.getByLabel('Message').fill('Automated smoke test from CI.');
+    await expect(page.getByTestId('contact-submit')).toHaveText('Send');
     await page.getByTestId('contact-submit').click();
     await expect(page.getByText('Your message has been sent')).toBeVisible();
 });
@@ -78,6 +144,19 @@ test('the contact form marks its required fields', async ({ page }) => {
     await expect(page.locator('form').getByTestId('required-mark')).toHaveCount(
         5,
     );
+
+    // The note sits below the fields, on the submit button's row, to its left,
+    // and the button stays on the right.
+    const form = await page.locator('form').boundingBox();
+    const note = await page.getByTestId('required-fields-note').boundingBox();
+    const submit = await page.getByTestId('contact-submit').boundingBox();
+    const message = await page.getByLabel('Message').boundingBox();
+    expect(note!.y).toBeGreaterThan(message!.y + message!.height);
+    expect(note!.y + note!.height / 2).toBeGreaterThan(submit!.y);
+    expect(note!.y + note!.height / 2).toBeLessThan(submit!.y + submit!.height);
+    expect(note!.x).toBeCloseTo(form!.x, 0);
+    expect(note!.x + note!.width).toBeLessThan(submit!.x);
+    expect(submit!.x + submit!.width).toBeCloseTo(form!.x + form!.width, 0);
 });
 
 test('contact FAQ answers open and close by mouse and keyboard', async ({

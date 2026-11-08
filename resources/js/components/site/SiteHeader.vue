@@ -86,7 +86,7 @@ function openFromMobile(modal: 'login' | 'register'): void {
                         data-test="open-register"
                         @click="open('register')"
                     >
-                        Sign up
+                        Register
                     </Button>
                 </template>
 
@@ -141,7 +141,7 @@ function openFromMobile(modal: 'login' | 'register'): void {
                                     >Log in</Button
                                 >
                                 <Button @click="openFromMobile('register')"
-                                    >Sign up</Button
+                                    >Register</Button
                                 >
                             </template>
                         </div>

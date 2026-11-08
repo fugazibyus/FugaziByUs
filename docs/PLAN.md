@@ -5,15 +5,15 @@
 
 **Decisions locked in**
 
-| Topic             | Decision                                                                                                                                                                                                                                                   |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stack             | Laravel (latest stable) + Inertia + Vue 3 (TypeScript) + Tailwind 4, MySQL 8.4, Nginx, PHP-FPM 8.4                                                                                                                                                         |
-| Containers        | `app` (php-fpm), `db` (mysql), `nginx` + support containers from the same images: `queue`, `scheduler`, `vite` (local only), `mailpit` (local only), `certbot` (hosted only)                                                                               |
-| Orchestrator      | **Hybrid**: GitHub Actions start agent sessions; the Laravel app receives Slack + Anthropic webhooks, stores metrics, sends Slack alerts                                                                                                                   |
-| Hosting           | DigitalOcean: **staging Droplet** (`develop`) + **production Droplet** (`main`), images in DO Container Registry                                                                                                                                           |
-| Agents            | Claude Managed Agents, defined as files in the repo and synced with `ant apply`; the same prompt files generate local Claude Code subagents                                                                                                                |
-| Domain            | Day one: free `sslip.io` hostname per Droplet (real HTTPS, works immediately). Later: real domain by changing one secret                                                                                                                                   |
-| AI merge & deploy | **AI can merge and deploy**, through a deterministic **Merge Gate** and **Deploy Gate** (see §6a). Issues reported by non-developers still stop before merge unless a developer opts them in. Switches let you turn this down to "humans only" at any time |
+| Topic             | Decision                                                                                                                                                                                                                                                                     |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stack             | Laravel (latest stable) + Inertia + Vue 3 (TypeScript) + Tailwind 4, MySQL 8.4, Nginx, PHP-FPM 8.4                                                                                                                                                                           |
+| Containers        | `app` (php-fpm), `db` (mysql), `nginx` + support containers from the same images: `queue`, `scheduler`, `vite` (local only), `mailpit` (local only), `certbot` (hosted only)                                                                                                 |
+| Orchestrator      | **Hybrid**: GitHub Actions start agent sessions; the Laravel app receives Slack + Anthropic webhooks, stores metrics, sends Slack alerts                                                                                                                                     |
+| Hosting           | DigitalOcean: **staging Droplet** (`develop`) + **production Droplet** (`main`), images in DO Container Registry                                                                                                                                                             |
+| Agents            | Claude Managed Agents, defined as files in the repo and synced with `ant apply`; the same prompt files generate local Claude Code subagents                                                                                                                                  |
+| Domain            | Day one: free `sslip.io` hostname per Droplet (real HTTPS, works immediately). Later: real domain by changing one secret                                                                                                                                                     |
+| AI merge & deploy | **AI can merge and deploy**, through a deterministic **Merge Gate** and **Deploy Gate** (see §6a). Issues reported by anyone outside `@devs` and `@product` still stop before merge unless one of them opts in. Switches let you turn this down to "humans only" at any time |
 
 **About the domain question:** Droplets don't get a hostname — only an IP (App Platform gives `*.ondigitalocean.app`, but it doesn't fit the separate-containers requirement). `sslip.io` turns any IP into a hostname, e.g. `staging.164-90-12-34.sslip.io` resolves to `164.90.12.34`. Let's Encrypt issues real certificates for it, so HTTPS, Slack webhooks and Anthropic webhooks all work straight away. When you buy a domain, change `APP_DOMAIN` in the GitHub environment and redeploy.
 
@@ -102,22 +102,22 @@ All agents default to `claude-opus-5-5`. The model is one line in each file's fr
 
 | Agent          | Trigger                                                              | Does                                                                                                                                                                                                                         | Can't                                                                             | Budget |
 | -------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------ |
-| **triage**     | Issue opened, Slack intake, `/ai triage`                             | Classifies type/priority/size, asks clarifying questions, writes acceptance criteria, routes `flow:ai` vs `flow:human`                                                                                                       | Touch code; only labels + comments                                                | $1     |
-| **researcher** | `type:research` + `flow:ai` (including issues created from Slack)    | Web research, writes findings to the issue + a `docs/research/*.md` PR                                                                                                                                                       | Change app code                                                                   | $5     |
-| **developer**  | `flow:ai` issue approved (see §5) or `/ai develop`                   | Branches `ai/<type>/<issue>-slug` from `develop`, implements, writes PHPUnit tests, runs tests/lint in sandbox, opens PR                                                                                                     | Push to `main`/`develop`, edit workflows/agents/infra, merge                      | $15    |
-| **debugger**   | CI fails on an `ai/*` branch, `/ai fix`, bug issues                  | Reads CI logs, reproduces, fixes, pushes to same branch (max 2 attempts, then `ai:needs-human`)                                                                                                                              | Same as developer                                                                 | $5     |
-| **reviewer**   | Every PR from `ai/*`; human PRs on `/ai review` or `ai:review` label | Reviews correctness, security, tests, conventions, UI consistency; posts a GitHub review with inline comments and a structured **verdict** (`approve` / `request-changes`, risk `low/medium/high`) that the Merge Gate reads | Merge directly (only the Merge Gate merges)                                       | $3     |
-| **release**    | Daily schedule, `/ai release`                                        | Opens the release PR `develop→main` with release notes, runs smoke checks against staging, decides "ready to ship" and asks the Deploy Gate to ship it; after the deploy, checks prod and summarises it on the release PR    | Run deploy scripts itself (the Deploy Gate workflow does the deploy and rollback) | $2     |
+| **triage**     | Issue opened, Slack intake, `/ai triage`                             | Classifies type/priority/size, asks clarifying questions, writes acceptance criteria, routes `flow:ai` vs `flow:human`                                                                                                       | Touch code; only labels + comments                                                | $2     |
+| **researcher** | `type:research` + `flow:ai` (including issues created from Slack)    | Web research, writes findings to the issue + a `docs/research/*.md` PR                                                                                                                                                       | Change app code                                                                   | $10    |
+| **developer**  | `flow:ai` issue approved (see §5) or `/ai develop`                   | Branches `ai/<type>/<issue>-slug` from `develop`, implements, writes PHPUnit tests, runs tests/lint in sandbox, opens PR                                                                                                     | Push to `main`/`develop`, edit workflows/agents/infra, merge                      | $30    |
+| **debugger**   | CI fails on an `ai/*` branch, `/ai fix`, bug issues                  | Reads CI logs, reproduces, fixes, pushes to same branch (max 2 attempts, then `ai:needs-human`)                                                                                                                              | Same as developer                                                                 | $10    |
+| **reviewer**   | Every PR from `ai/*`; human PRs on `/ai review` or `ai:review` label | Reviews correctness, security, tests, conventions, UI consistency; posts a GitHub review with inline comments and a structured **verdict** (`approve` / `request-changes`, risk `low/medium/high`) that the Merge Gate reads | Merge directly (only the Merge Gate merges)                                       | $6     |
+| **release**    | Daily schedule, `/ai release`                                        | Opens the release PR `develop→main` with release notes, runs smoke checks against staging, decides "ready to ship" and asks the Deploy Gate to ship it; after the deploy, checks prod and summarises it on the release PR    | Run deploy scripts itself (the Deploy Gate workflow does the deploy and rollback) | $4     |
 
 **Commands that drive the agents**
 
-| Where                                | Commands                                                                                                                                                                                              |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GitHub comments (collaborators only) | `/ai triage`, `/ai develop`, `/ai fix`, `/ai review`, `/ai research`, `/ai stop`, `/ai merge` (dev-only: ask the Merge Gate to merge now), `/ai release`, `/ai deploy staging\|production` (dev-only) |
-| Slack                                | **⋮ → Create issue** on any message, or `/github open fugazibyus/FugaziByUs` (GitHub's app for Slack). Alerts arrive in the `#fugazi-*` channels                                                      |
-| Local Claude Code                    | `/triage 12`, `/develop 12`, `/review 34`, `/debug`, `/research "topic"`, `/release` (same prompts, run on your own working copy)                                                                     |
-| Local terminal → cloud               | `make ai-run agent=developer issue=12` (starts the same Managed Agent remotely), `ant beta:sessions connect` to watch live                                                                            |
-| Manual deploy                        | Actions → "Deploy" → choose env + ref, or `make deploy env=staging` (break-glass over SSH)                                                                                                            |
+| Where                                | Commands                                                                                                                                                                                                                                         |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GitHub comments (collaborators only) | `/ai triage`, `/ai develop`, `/ai fix`, `/ai review`, `/ai research`, `/ai stop`, `/ai merge` (devs: ask the Merge Gate to merge now; `@product`: ship an approved AI PR to staging), `/ai release`, `/ai deploy staging\|production` (dev-only) |
+| Slack                                | **⋮ → Create issue** on any message, or `/github open fugazibyus/FugaziByUs` (GitHub's app for Slack). Alerts arrive in the `#fugazi-*` channels                                                                                                 |
+| Local Claude Code                    | `/triage 12`, `/develop 12`, `/review 34`, `/debug`, `/research "topic"`, `/release` (same prompts, run on your own working copy)                                                                                                                |
+| Local terminal → cloud               | `make ai-run agent=developer issue=12` (starts the same Managed Agent remotely), `ant beta:sessions connect` to watch live                                                                                                                       |
+| Manual deploy                        | Actions → "Deploy" → choose env + ref, or `make deploy env=staging` (break-glass over SSH)                                                                                                                                                       |
 
 ---
 
@@ -146,7 +146,7 @@ Rules enforced by GitHub rulesets: nobody pushes directly to `main`/`develop`. P
 4. **Develop → PR → CI → (debugger) → reviewer.** Status labels move along: `ai:in-progress` → `ai:pr-open` → `ready-for-review`.
 5. **Merge.** The Merge Gate checks the PR (§6a).
     - **Eligible:** the gate merges it into `develop` (`ai:automerged`) and staging deploys.
-    - **Not eligible:** the PR is labelled `ready-for-review` and a dev is DM'd to review and merge. **Issues reported by non-developers always land here** unless a dev adds `ai:automerge`.
+    - **Not eligible:** the PR is labelled `ready-for-review` and a dev is DM'd to review and merge. **Issues reported by anyone outside `@devs` and `@product` always land here** unless a dev or `@product` member adds `ai:automerge` or comments `/ai merge`.
     - Either way the issue auto-closes on merge, and Slack DMs the reporter.
 6. **Ship.** The release agent bundles what's on `develop` into a release PR. The Deploy Gate decides whether the AI can merge it and deploy production, or whether a dev must approve.
 
@@ -154,7 +154,7 @@ Rules enforced by GitHub rulesets: nobody pushes directly to `main`/`develop`. P
 
 - Type: `type:bug`, `type:feature`, `type:research`, `type:chore`
 - Flow: `flow:ai`, `flow:human`
-- Control: `ai:go`, `ai:stop`, `ai:review`, `ai:automerge` (dev opts a PR/issue into AI merge), `ai:no-automerge` (dev forces human merge), `deploy:hold` (blocks AI prod deploy), `allow-sensitive-paths`
+- Control: `ai:go`, `ai:stop`, `ai:review`, `ai:automerge` (dev or `@product` opts a PR/issue into AI merge), `ai:no-automerge` (dev forces human merge), `deploy:hold` (blocks AI prod deploy), `allow-sensitive-paths`
 - Status: `needs-triage`, `ai:needs-info`, `ai:in-progress`, `ai:pr-open`, `ai:needs-human`, `ai:failed`, `ready-for-review`, `ai:automerged`, `blocked`
 - Meta: `priority:low|medium|high`, `size:s|m|l`, `source:github|slack`
 
@@ -180,16 +180,16 @@ Both gates are GitHub Actions workflows that hold a **GitHub App** token (`Fugaz
 
 **Policy switches** (repo variables, editable in GitHub or with the **AI · pause and resume** workflow):
 
-| Variable                   | Values                                                                                          | Default          |
-| -------------------------- | ----------------------------------------------------------------------------------------------- | ---------------- |
-| `AI_AUTOMERGE_MODE`        | `off` · `devs-only` (issue raised or approved by a `@devs` member) · `all` (non-dev issues too) | `devs-only`      |
-| `AI_AUTODEPLOY_STAGING`    | `on` / `off`                                                                                    | `on`             |
-| `AI_AUTODEPLOY_PRODUCTION` | `off` · `business-hours` (Mon–Thu 09:00–16:00, your timezone) · `on`                            | `business-hours` |
-| `AI_MAX_AUTOMERGE_SIZE`    | `s` / `m` / `l`                                                                                 | `m`              |
+| Variable                   | Values                                                                                                     | Default          |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------- |
+| `AI_AUTOMERGE_MODE`        | `off` · `devs-only` (issue raised or approved by a `@devs` or `@product` member) · `all` (anyone's issues) | `devs-only`      |
+| `AI_AUTODEPLOY_STAGING`    | `on` / `off`                                                                                               | `on`             |
+| `AI_AUTODEPLOY_PRODUCTION` | `off` · `business-hours` (Mon–Thu 09:00–16:00, your timezone) · `on`                                       | `business-hours` |
+| `AI_MAX_AUTOMERGE_SIZE`    | `s` / `m` / `l`                                                                                            | `m`              |
 
 **Merge Gate: a PR into `develop` auto-merges only if ALL of the following hold:**
 
-1. The mode allows it. Under `devs-only`, the issue was opened by a `@devs` member, or a dev added `ai:go`/`ai:automerge`. Non-dev issues need a dev opt-in (your original rule, kept as the default).
+1. The mode allows it. Under `devs-only`, the issue was opened by a `@devs` or `@product` member, or one of them added `ai:automerge` or commented `/ai merge`. Other issues (designers, outside reporters) need that explicit opt-in; `ai:go` only starts the agent and never approves a merge.
 2. The branch is `ai/*`. Human branches merge only by a human, or when a dev comments `/ai merge`.
 3. All CI checks are green (lint, static analysis, types, tests, build, Playwright smoke, guardrails).
 4. The reviewer agent's latest verdict is `approve`, risk `low` or `medium`, with no unresolved blocking comments, and it reviewed the current head commit.
@@ -206,12 +206,53 @@ The gate squash-merges with a message linking the issue, the agent sessions and 
     1. `AI_AUTODEPLOY_PRODUCTION` allows it right now (business hours by default, never Fridays or weekends).
     2. Staging has been running this exact commit for ≥ 30 minutes, with smoke tests and health checks passing.
     3. Every PR in the release either auto-merged through the Merge Gate or was human-approved, and none carries `deploy:hold`.
-    4. No migrations in the release, unless a dev approved the release PR.
-    5. No production deploy in the last 60 minutes, and no failed prod deploy that hasn't been resolved.
+    4. No migrations in the release, unless a dev approved the release PR's current commit.
+    5. Every PR in the release came from an issue a `@devs` member raised, or a dev approved or merged it. Work from `@product` (or anyone else outside `@devs`) can reach staging on its own, but reaches production only after a dev approves that PR or the release PR.
+    6. No production deploy in the last 60 minutes, and no failed prod deploy that hasn't been resolved.
 - **If any check fails,** the `production` environment falls back to needing a dev's approval, and that dev gets a DM with the reasons.
 - **After deploy:** health check → automatic rollback on failure → the release agent verifies prod and posts the summary.
 
 **Manual override is always available:** a dev can merge any PR or run the manual `Deploy` workflow regardless of the gates.
+
+### 6b. Optional route: the gate reports, GitHub merges
+
+> **Status:** optional, not built. §6a describes what runs today. This section records a more conventional design we can move to if we want one.
+
+**Why consider it.** Today the Merge Gate App is on the ruleset bypass list and calls the merge API itself. That works, but few teams set it up this way. Most let GitHub do the merge once every required check passes. With the bypass, a bug in the gate or a leaked App key can merge past branch protection. Without it, the worst case is a wrong pass or fail on one check.
+
+**What changes.** The policy (`app/Gates/MergePolicy.php`), its tests and the triggers stay as they are. Only the last step changes: the gate reports its decision instead of acting on it.
+
+| Today (§6a)                                                 | Optional route                                                                                                                                                                                                         |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Gate App on the `develop` ruleset bypass list               | No bypass actors on `develop`                                                                                                                                                                                          |
+| Gate calls the merge API                                    | Gate posts a **`Merge Gate`** commit status on the head commit (`success` / `pending` / `failure`, with the reasons) and turns on GitHub auto-merge (squash, same commit message). On failure it turns auto-merge off  |
+| Ruleset: green CI + (1 `@devs` approval **or** gate bypass) | Ruleset: required checks `CI passed`, `Guardrails` and `Merge Gate`. No ruleset approval count; the gate's check needs either a `@devs` approval or a pass of the AI rules. CODEOWNERS review on sensitive paths stays |
+| Gate updates a stale branch, then merges later              | Same, or switch on a merge queue for `develop` and let GitHub keep branches up to date                                                                                                                                 |
+| Gate adds `ai:automerged` when it merges                    | A small job on `pull_request_target: closed` (merged) adds the label, clears `ai:pr-open` and tells Slack                                                                                                              |
+
+**Bonus.** A commit status belongs to one commit. A new push leaves the new head without a `Merge Gate` pass, so GitHub itself blocks the merge until the gate checks again (backing up rule 4 in §6a).
+
+**Code changes (roughly one PR each):**
+
+1. `app/Gates/GitHub.php`: add `setStatus()` (REST commit statuses) and `enableAutoMerge()` / `disableAutoMerge()` (GraphQL).
+2. `GateMergeCommand`: on `MERGE`, post `success` and enable auto-merge instead of merging. On `WAIT` / `UPDATE_BRANCH`, post `pending`. On `REFUSE`, post `failure` and disable auto-merge. Human PRs get a check too, passing once a `@devs` member has approved.
+3. `merge-gate.yml`: run for human PRs as well (they need the check now), and add the post-merge labelling job.
+4. Tests: `MergePolicyTest` is unchanged. `GateCommandsTest` asserts statuses and auto-merge calls instead of the merge call.
+5. GitHub App: add `statuses: write` and keep pull requests and contents write. It is no longer a bypass actor.
+
+**Rollout (each step can be undone on its own):**
+
+1. **Shadow mode.** The gate posts the `Merge Gate` status but still merges as today. We compare the two for a week or two.
+2. **Switch.** Make `Merge Gate` a required check, drop the approval count from the ruleset, and change the gate to auto-merge instead of merging.
+3. **Remove the bypass.** Take the Merge Gate App off the `develop` bypass list. Undo: put it back.
+
+**Deploy Gate.** The same idea applies to release PRs into `main`. Production can also use a **custom deployment protection rule**, GitHub's built-in way for an App to approve or reject a deployment, instead of the gate merging and deploying.
+
+**Trade-offs to accept:**
+
+- Human PRs also wait for the gate's check, and the "needs a `@devs` approval" rule moves from the ruleset into the gate's code (with tests).
+- There is a short gap between someone adding `ai:no-automerge` or `blocked` and the gate turning auto-merge off. Today the gate re-checks just before it merges.
+- Auto-merge and a merge queue must be switched on in the repo settings, and the Slack "merged" message moves to the post-merge job.
 
 ---
 
@@ -258,7 +299,7 @@ Slack and GitHub talk to each other directly; the website isn't in the middle (s
 
 **Design:** clean and airy, Inter font, neutral slate palette with one violet accent, rounded-2xl cards, subtle gradients on the hero, light and dark mode. Design tokens live in Tailwind 4 `@theme` so the designer can see and change them in one place. Components use shadcn-vue (it ships with the Laravel Vue starter kit).
 
-**Top menu:** Logo · Home · AI Workflow · Contact · (guest: Log in / Sign up buttons → modals) · (auth: avatar dropdown → My account, Log out).
+**Top menu:** Logo · Home · AI Workflow · Contact · (guest: Log in / Register buttons → modals) · (auth: avatar dropdown → My account, Log out).
 
 | Page                           | Contents                                                                                                                                                                                                                                                                                  |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -354,3 +395,4 @@ Rough running cost: about $29/month in DigitalOcean (2 Droplets + registry). Ant
 - Who besides you is in `@devs` (reviewers who can merge, and whose issues qualify for AI auto-merge).
 - Your timezone and deploy window for `AI_AUTODEPLOY_PRODUCTION=business-hours`.
 - When to allow migrations to auto-merge (suggest: once the flow has run cleanly for a few weeks).
+- Whether to move the Merge Gate to the "report, let GitHub merge" route in §6b (suggest: start with shadow mode).

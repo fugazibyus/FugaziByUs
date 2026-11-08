@@ -8,6 +8,7 @@
 #   /ai release                    open or refresh the release PR develop → main
 #   /ai stop                       add ai:stop and interrupt the agents working on this issue/PR
 #   /ai merge             (PR)     developers: ask the Merge Gate to merge now (release PR: the Deploy Gate)
+#                                  @product (Triage role): ship an approved AI PR to develop, and so staging
 #   /ai deploy production (PR)     developers: ask the Deploy Gate to ship the release PR now
 #   /ai help                       list the commands
 #
@@ -70,11 +71,16 @@ jobs:
             const command = match?.[1]?.toLowerCase() ?? 'help';
             const notes = match?.[2]?.trim() ?? '';
 
-            // Only people who can write to the repo can drive the agents.
+            // Only people who can write to the repo can drive the agents. The Triage role (the
+            // @product team) may also use `/ai merge` to ship AI work to staging; the Merge Gate
+            // checks their team and still applies every review rule. `permission` reports Triage
+            // as "read", so the role is read from `role_name`.
             const { data: perm } = await github.rest.repos
               .getCollaboratorPermissionLevel({ ...context.repo, username: comment.user.login })
               .catch(() => ({ data: { permission: 'none' } }));
-            if (!['admin', 'maintain', 'write'].includes(perm.permission)) {
+            const canWrite = ['admin', 'write'].includes(perm.permission);
+            const canShipToStaging = canWrite || perm.role_name === 'triage';
+            if (!canWrite && !(command === 'merge' && canShipToStaging)) {
               await react('-1');
               return reply(`Sorry @${comment.user.login}, only repository collaborators can use \`/ai\` commands.`);
             }
@@ -89,7 +95,7 @@ jobs:
               '| `/ai review [focus]` | PR | Start the reviewer |',
               '| `/ai release` | anywhere | Open or refresh the release PR |',
               '| `/ai stop` | issue / PR | Stop the agents and add `ai:stop` |',
-              '| `/ai merge` | PR | Developers: ask the Merge Gate (or, on the release PR, the Deploy Gate) to merge now |',
+              '| `/ai merge` | PR | Developers: ask the Merge Gate (or, on the release PR, the Deploy Gate) to merge now. @product: ship an approved AI PR to staging |',
               '| `/ai deploy production` | release PR | Developers: ask the Deploy Gate to ship now |',
             ].join('\n');
 
@@ -161,6 +167,7 @@ jobs:
                 if (!(await needs('pr'))) return;
                 if (process.env.GATES_READY !== 'true') return reply('The Merge and Deploy Gates aren\'t set up yet (no `MERGE_GATE_APP_ID`). See docs/SETUP-AI.md §7.');
                 const release = pr.base.ref === 'main';
+                if (release && !canWrite) return reply(`Sorry @${comment.user.login}, only developers can ship to production. \`/ai merge\` on an AI pull request into \`develop\` ships it to staging.`);
                 if (command === 'deploy') {
                   if (notes.split(/\s+/)[0] !== 'production') return reply('Use `/ai deploy production` on the release PR. Staging deploys by itself when develop changes.');
                   if (!release) return reply('`/ai deploy production` works on the release pull request (develop → main).');

@@ -56,12 +56,12 @@ Each agent is a Markdown file in [`agents/`](agents/): the frontmatter holds the
 
 | Agent          | Starts when                                     | Does                                                                       | Budget / run |
 | -------------- | ----------------------------------------------- | -------------------------------------------------------------------------- | ------------ |
-| **triage**     | An issue is opened                              | Labels type, priority and size, writes acceptance criteria, asks questions | $1           |
-| **researcher** | A `type:research` issue qualifies               | Researches the web, posts sourced findings                                 | $5           |
-| **developer**  | A `flow:ai` issue qualifies, or `/ai develop`   | Branches, implements, writes tests, opens a PR                             | $15          |
-| **debugger**   | CI fails on an `ai/*` PR, or `/ai fix`          | Reads the logs and fixes the branch (2 attempts, then `ai:needs-human`)    | $5           |
-| **reviewer**   | CI passes on an `ai/*` PR, or `ai:review` label | Reviews and records a verdict (approve / request changes + risk)           | $3           |
-| **release**    | Mon–Thu 08:30 Sydney, or `/ai release`          | Opens the `develop → main` release PR with notes, checks staging and prod  | $2           |
+| **triage**     | An issue is opened                              | Labels type, priority and size, writes acceptance criteria, asks questions | $2           |
+| **researcher** | A `type:research` issue qualifies               | Researches the web, posts sourced findings                                 | $10          |
+| **developer**  | A `flow:ai` issue qualifies, or `/ai develop`   | Branches, implements, writes tests, opens a PR                             | $30          |
+| **debugger**   | CI fails on an `ai/*` PR, or `/ai fix`          | Reads the logs and fixes the branch (2 attempts, then `ai:needs-human`)    | $10          |
+| **reviewer**   | CI passes on an `ai/*` PR, or `ai:review` label | Reviews and records a verdict (approve / request changes + risk)           | $6           |
+| **release**    | Mon–Thu 08:30 Sydney, or `/ai release`          | Opens the `develop → main` release PR with notes, checks staging and prod  | $4           |
 
 ---
 
@@ -380,13 +380,13 @@ Full guide: [docs/SETUP-HOSTED.md](docs/SETUP-HOSTED.md).
 
 ### Website pages
 
-| Page             | Route                            | Contents                                                      |
-| ---------------- | -------------------------------- | ------------------------------------------------------------- |
-| Home             | `/`                              | Hero, how it works, feature cards, live AI stats widget       |
-| AI Workflow      | `/ai-workflow`                   | Handbook: agents, workflow, commands, guardrails, labels, FAQ |
-| Contact          | `/contact`                       | Contact form (rate-limited, honeypot, posts to Slack)         |
-| Account          | `/account`                       | Profile, email and password (signed-in users)                 |
-| Log in / Sign up | `?auth=login` / `?auth=register` | Modals on any page                                            |
+| Page              | Route                            | Contents                                                      |
+| ----------------- | -------------------------------- | ------------------------------------------------------------- |
+| Home              | `/`                              | Hero, how it works, feature cards, live AI stats widget       |
+| AI Workflow       | `/ai-workflow`                   | Handbook: agents, workflow, commands, guardrails, labels, FAQ |
+| Contact           | `/contact`                       | Contact form (rate-limited, honeypot, posts to Slack)         |
+| Account           | `/account`                       | Profile, email and password (signed-in users)                 |
+| Log in / Register | `?auth=login` / `?auth=register` | Modals on any page                                            |
 
 ---
 

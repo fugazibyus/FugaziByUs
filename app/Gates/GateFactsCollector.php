@@ -38,9 +38,15 @@ class GateFactsCollector
     {
         $pr = $this->github->pullRequest($number);
         $headSha = (string) $pr['head']['sha'];
+
+        if ($requestedBy === null) {
+            $requestedBy = $this->keptRequester($number, $headSha, (string) $pr['base']['ref']);
+            $requestedVia = $requestedBy !== null ? '`/ai merge`, still standing' : null;
+        }
         $issueNumber = preg_match(self::CLOSES, (string) ($pr['body'] ?? ''), $m) ? (int) $m[1] : null;
         $issue = $issueNumber !== null ? $this->github->issue($issueNumber) : null;
         $reviews = $this->github->reviews($number);
+        $reporter = $issue['user']['login'] ?? null;
 
         $labels = array_values(array_unique([
             ...array_column($pr['labels'], 'name'),
@@ -63,10 +69,13 @@ class GateFactsCollector
             behindBy: (int) ($this->github->compare((string) $pr['base']['ref'], $headSha)['behind_by'] ?? 0),
             verdict: $this->verdict($reviews),
             issue: $issueNumber,
-            reportedByDev: $issue !== null && $this->github->isDev($issue['user']['login'] ?? null),
+            reporter: $reporter,
+            reportedByDev: $this->github->isDev($reporter),
+            reportedByProduct: $this->github->isProduct($reporter),
             optedInBy: $this->optedInBy(array_filter([$number, $issueNumber]), $labels),
             requestedBy: $requestedBy,
             requesterIsDev: $requestedBy !== null && $this->github->isDev($requestedBy),
+            requesterIsProduct: $requestedBy !== null && $this->github->isProduct($requestedBy),
             requestedVia: $requestedVia,
             sessions: $this->sessions([(string) ($pr['body'] ?? ''), ...array_map(fn (array $r) => (string) $r['body'], $reviews)]),
         );
@@ -81,9 +90,10 @@ class GateFactsCollector
         $compare = $this->github->compare($base, $head);
         $staging = $this->staging();
 
+        // Only approvals of the current head count: the release PR grows as more work lands on develop.
         /** @var list<string> $approvals */
         $approvals = collect($this->github->reviews($number))
-            ->filter(fn (array $r) => $r['state'] === 'APPROVED')
+            ->filter(fn (array $r) => $r['state'] === 'APPROVED' && ($r['commit_id'] ?? null) === $headSha)
             ->pluck('user.login')
             ->unique()
             ->filter(fn (string $login) => $this->github->isDev($login))
@@ -148,14 +158,49 @@ class GateFactsCollector
     }
 
     /**
-     * The developer who most recently added `ai:go` or `ai:automerge` (still present) to the PR or its issue.
+     * Who asked to merge in an earlier run that had to wait or update the branch first.
+     *
+     * The request covers the commit they asked about. It still counts if the head is that
+     * commit, or the gate's own merge of the base branch into it (first parent = that commit,
+     * second parent already on the base branch). Anyone else's push makes it lapse.
+     */
+    private function keptRequester(int $number, string $headSha, string $base): ?string
+    {
+        $body = $this->github->gateComment($number, GateReport::MERGE_MARKER);
+        $request = $body !== null ? GateReport::keptRequest($body) : null;
+
+        if ($request === null) {
+            return null;
+        }
+
+        if ($request['sha'] === $headSha) {
+            return $request['login'];
+        }
+
+        $parents = array_column($this->github->commit($headSha)['parents'] ?? [], 'sha');
+
+        if (count($parents) !== 2 || $parents[0] !== $request['sha']) {
+            return null;
+        }
+
+        $status = $this->github->compare((string) $parents[1], $base)['status'] ?? null;
+
+        return in_array($status, ['ahead', 'identical'], true) ? $request['login'] : null;
+    }
+
+    /**
+     * The developer or product member who most recently added `ai:automerge` (still present)
+     * to the PR or its issue.
+     *
+     * `ai:go` doesn't count: it only lets the agent start work. Someone must opt in to merging
+     * separately, so a designer's ticket can't merge just because work began.
      *
      * @param  array<int>  $numbers
      * @param  list<string>  $labels
      */
     private function optedInBy(array $numbers, array $labels): ?string
     {
-        if (! in_array('ai:go', $labels, true) && ! in_array('ai:automerge', $labels, true)) {
+        if (! in_array('ai:automerge', $labels, true)) {
             return null;
         }
 
@@ -166,7 +211,7 @@ class GateFactsCollector
                 $label = $event['label']['name'] ?? null;
                 $actor = $event['actor']['login'] ?? null;
 
-                if ($event['event'] === 'labeled' && in_array($label, ['ai:go', 'ai:automerge'], true) && $this->github->isDev($actor)) {
+                if ($event['event'] === 'labeled' && $label === 'ai:automerge' && ($this->github->isDev($actor) || $this->github->isProduct($actor))) {
                     $by = $actor;
                 }
             }
@@ -177,7 +222,7 @@ class GateFactsCollector
 
     /**
      * @param  array<string, mixed>  $compare
-     * @return list<array{number: int, merged_by: string, labels: list<string>}>
+     * @return list<array{number: int, merged_by: string, labels: list<string>, reporter: ?string, reported_by_dev: bool, dev_reviewed: bool}>
      */
     private function releasedPullRequests(array $compare, string $branch): array
     {
@@ -193,11 +238,20 @@ class GateFactsCollector
 
         return array_map(function (int $number) {
             $pr = $this->github->pullRequest($number);
+            $mergedBy = (string) ($pr['merged_by']['login'] ?? '');
+            $issueNumber = preg_match(self::CLOSES, (string) ($pr['body'] ?? ''), $m) ? (int) $m[1] : null;
+            $reporter = $issueNumber !== null
+                ? ($this->github->issue($issueNumber)['user']['login'] ?? null)
+                : ($pr['user']['login'] ?? null);
 
             return [
                 'number' => $number,
-                'merged_by' => (string) ($pr['merged_by']['login'] ?? ''),
+                'merged_by' => $mergedBy,
                 'labels' => array_column($pr['labels'], 'name'),
+                'reporter' => $reporter,
+                'reported_by_dev' => $this->github->isDev($reporter),
+                'dev_reviewed' => $this->github->isDev($mergedBy) || collect($this->github->reviews($number))
+                    ->contains(fn (array $r) => $r['state'] === 'APPROVED' && $this->github->isDev($r['user']['login'] ?? null)),
             ];
         }, array_keys($numbers));
     }

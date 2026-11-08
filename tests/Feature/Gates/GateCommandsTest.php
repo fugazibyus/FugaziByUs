@@ -4,11 +4,17 @@ namespace Tests\Feature\Gates;
 
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class GateCommandsTest extends TestCase
 {
     private const SHA = '7dfccd0111da7fcd301d1c5915827a60d43dae54';
+
+    /** The gate's merge of develop into the PR branch. */
+    private const UPDATED_SHA = '7e4f0630a1b2c3d4e5f60718293a4b5c6d7e8f90';
+
+    private const DEVELOP_SHA = '29aa48edcb9a9e176c1f1e6ccd650c0b836b6cbc';
 
     private const REPO = 'https://api.github.com/repos/fugazibyus/FugaziByUs';
 
@@ -50,8 +56,13 @@ class GateCommandsTest extends TestCase
 
         Http::preventStrayRequests();
         Http::fake(function (Request $request) {
-            if (str_contains($request->url(), '/teams/devs/memberships/')) {
-                return Http::response(['state' => str_ends_with($request->url(), '/sgoodwin10') ? 'active' : null], str_ends_with($request->url(), '/sgoodwin10') ? 200 : 404);
+            // @devs is sgoodwin10; @product is a-pm.
+            foreach (['devs' => 'sgoodwin10', 'product' => 'a-pm'] as $team => $member) {
+                if (str_contains($request->url(), "/teams/{$team}/memberships/")) {
+                    $active = str_ends_with($request->url(), "/{$member}");
+
+                    return Http::response(['state' => $active ? 'active' : null], $active ? 200 : 404);
+                }
             }
 
             $path = rawurldecode((string) parse_url(str_replace(self::REPO, '', $request->url()), PHP_URL_PATH));
@@ -122,6 +133,196 @@ class GateCommandsTest extends TestCase
             && str_contains($r['body'], "The reviewer's verdict is `request-changes`."));
     }
 
+    public function test_the_merge_gate_leaves_a_merged_pull_request_and_its_comment_alone(): void
+    {
+        // e.g. the gate's own `ai:automerged` label starts one more run after it merged.
+        $this->github['GET /pulls/6']['state'] = 'closed';
+        $this->github['GET /pulls/6']['merged'] = true;
+
+        $this->artisan('gate:merge', ['pr' => 6, '--trigger' => 'pull_request_target'])
+            ->expectsOutputToContain('#6 is closed; the Merge Gate has nothing to do.')
+            ->assertSuccessful();
+
+        Http::assertNotSent(fn (Request $r) => $r->method() !== 'GET');
+    }
+
+    public function test_the_deploy_gate_leaves_a_merged_release_pull_request_and_its_comment_alone(): void
+    {
+        $this->github['GET /pulls/7'] = ['number' => 7, 'state' => 'closed', 'merged' => true];
+
+        $this->artisan('gate:deploy', ['pr' => 7, '--trigger' => 'pull_request_target'])
+            ->expectsOutputToContain('#7 is closed; the Deploy Gate has nothing to do.')
+            ->assertSuccessful();
+
+        Http::assertNotSent(fn (Request $r) => $r->method() !== 'GET');
+    }
+
+    public function test_ai_go_on_a_designers_issue_starts_the_work_but_does_not_let_the_gate_merge(): void
+    {
+        $this->givenADesignersIssueLabelledByADeveloper('ai:go');
+
+        $this->artisan('gate:merge', ['pr' => 6, '--dry-run' => true])
+            ->expectsOutputToContain('Merge Gate decision: refuse')
+            ->expectsOutputToContain('The issue was reported by someone outside @devs and @product. A developer or product member must add `ai:automerge` or comment `/ai merge` first.')
+            ->assertSuccessful();
+    }
+
+    public function test_ai_automerge_from_a_developer_lets_the_gate_merge_a_designers_issue(): void
+    {
+        $this->givenADesignersIssueLabelledByADeveloper('ai:automerge');
+
+        $this->artisan('gate:merge', ['pr' => 6, '--dry-run' => true])
+            ->expectsOutputToContain('Merge Gate decision: merge')
+            ->expectsOutputToContain('@sgoodwin10 opted in with `ai:automerge`.')
+            ->assertSuccessful();
+    }
+
+    public function test_the_gate_merges_an_approved_fix_for_a_product_members_issue_on_its_own(): void
+    {
+        $this->github['GET /issues/2']['user']['login'] = 'a-pm';
+
+        $this->artisan('gate:merge', ['pr' => 6, '--trigger' => 'review'])
+            ->expectsOutputToContain('Merge Gate decision: merge')
+            ->expectsOutputToContain('Issue #2 was reported by @a-pm from @product.')
+            ->assertSuccessful();
+
+        Http::assertSent(fn (Request $r) => $r->method() === 'PUT' && str_ends_with($r->url(), '/pulls/6/merge'));
+    }
+
+    public function test_ai_automerge_from_a_product_member_lets_the_gate_merge_a_designers_issue(): void
+    {
+        $this->givenADesignersIssueLabelledByADeveloper('ai:automerge', by: 'a-pm');
+
+        $this->artisan('gate:merge', ['pr' => 6, '--dry-run' => true])
+            ->expectsOutputToContain('Merge Gate decision: merge')
+            ->expectsOutputToContain('@a-pm opted in with `ai:automerge`.')
+            ->assertSuccessful();
+    }
+
+    public function test_a_product_member_ships_an_approved_ai_pull_request_to_staging_with_an_ai_merge_comment(): void
+    {
+        $this->givenADesignersIssueLabelledByADeveloper('ai:go');
+        $this->givenAnAiMergeComment(by: 'a-pm');
+
+        $this->artisan('gate:merge', ['pr' => 6, '--comment' => 555])
+            ->expectsOutputToContain('Requested by @a-pm from @product (`/ai merge`), so the usual AI rules apply.')
+            ->expectsOutputToContain('The reviewer approved.')
+            ->assertSuccessful();
+
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/pulls/6/merge'));
+    }
+
+    public function test_a_product_member_cannot_merge_a_human_branch(): void
+    {
+        $this->github['GET /pulls/6']['head']['ref'] = 'feature/6-copy-tweak';
+        $this->givenAnAiMergeComment(by: 'a-pm');
+
+        $this->artisan('gate:merge', ['pr' => 6, '--comment' => 555])
+            ->expectsOutputToContain('Only `ai/*` branches merge automatically.')
+            ->assertSuccessful();
+
+        Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/pulls/6/merge'));
+    }
+
+    public function test_someone_outside_devs_and_product_cannot_ask_the_gate(): void
+    {
+        $this->givenAnAiMergeComment(by: 'a-designer');
+
+        $this->artisan('gate:merge', ['pr' => 6, '--comment' => 555])
+            ->expectsOutputToContain('@a-designer asked to merge, but only members of @devs or @product can.')
+            ->assertSuccessful();
+
+        Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/pulls/6/merge'));
+    }
+
+    public function test_a_merge_request_is_kept_while_the_gate_updates_the_branch(): void
+    {
+        // A designer's issue, so only the `/ai merge` request lets it through.
+        $this->givenADesignersIssueLabelledByADeveloper('ai:go');
+        $this->givenAnAiMergeComment(by: 'sgoodwin10');
+        $this->github['GET /compare/develop...'.self::SHA] = ['behind_by' => 1];
+        $this->github['PUT /pulls/6/update-branch'] = ['message' => 'Updating pull request branch.'];
+
+        $this->artisan('gate:merge', ['pr' => 6, '--comment' => 555])
+            ->expectsOutputToContain('Merge Gate decision: update-branch')
+            ->assertSuccessful();
+
+        Http::assertSent(fn (Request $r) => $r->method() === 'POST' && str_ends_with($r->url(), '/issues/6/comments')
+            && str_contains($r['body'], '<!-- merge-request: @sgoodwin10 '.self::SHA.' -->'));
+
+        // CI finishes on the gate's merge of develop into the branch: a run nobody asked for.
+        $this->givenTheGateUpdatedTheBranch(parents: [self::SHA, self::DEVELOP_SHA], requestedBy: 'sgoodwin10');
+
+        $this->artisan('gate:merge', ['pr' => 6, '--trigger' => 'ci'])
+            ->expectsOutputToContain('Merge Gate decision: merge')
+            ->expectsOutputToContain('Requested by @sgoodwin10, a developer (`/ai merge`, still standing).')
+            ->assertSuccessful();
+
+        Http::assertSent(fn (Request $r) => $r->method() === 'PUT' && str_ends_with($r->url(), '/pulls/6/merge') && $r['sha'] === self::UPDATED_SHA);
+    }
+
+    /**
+     * @return array<string, array{0: list<string>, 1: string}>
+     */
+    public static function lapsedRequests(): array
+    {
+        return [
+            'someone pushed a new commit' => [['0000000000000000000000000000000000000001'], 'gate'],
+            'the merge brought in a branch that isn\'t develop' => [[self::SHA, 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'], 'gate'],
+            'the request marker wasn\'t written by the gate' => [[self::SHA, self::DEVELOP_SHA], 'someone-else[bot]'],
+        ];
+    }
+
+    #[DataProvider('lapsedRequests')]
+    public function test_a_kept_merge_request_lapses_unless_only_the_gate_changed_the_branch(array $parents, string $commentBy): void
+    {
+        $this->givenADesignersIssueLabelledByADeveloper('ai:go');
+        $this->givenTheGateUpdatedTheBranch(parents: $parents, requestedBy: 'sgoodwin10', commentBy: $commentBy);
+
+        $this->artisan('gate:merge', ['pr' => 6, '--dry-run' => true])
+            ->expectsOutputToContain('Merge Gate decision: refuse')
+            ->expectsOutputToContain('The issue was reported by someone outside @devs and @product.')
+            ->assertSuccessful();
+    }
+
+    /**
+     * The PR's head is now UPDATED_SHA (with these parents), CI is green on it, and the gate's
+     * comment remembers who asked to merge SHA.
+     *
+     * @param  list<string>  $parents
+     */
+    private function givenTheGateUpdatedTheBranch(array $parents, string $requestedBy, string $commentBy = 'gate'): void
+    {
+        $this->github['GET /pulls/6']['head']['sha'] = self::UPDATED_SHA;
+        $this->github['GET /commits/'.self::UPDATED_SHA] = ['sha' => self::UPDATED_SHA, 'parents' => array_map(fn (string $sha) => ['sha' => $sha], $parents)];
+        $this->github['GET /commits/'.self::UPDATED_SHA.'/check-runs'] = $this->github['GET /commits/'.self::SHA.'/check-runs'];
+        $this->github['GET /compare/develop...'.self::UPDATED_SHA] = ['behind_by' => 0];
+        $this->github['GET /compare/'.self::DEVELOP_SHA.'...develop'] = ['status' => 'identical'];
+        $this->github['GET /compare/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee...develop'] = ['status' => 'diverged'];
+        $this->github['GET /issues/6/comments'] = [[
+            'id' => 99, 'user' => ['login' => $commentBy === 'gate' ? 'fugazi-merge-gate[bot]' : $commentBy, 'type' => 'Bot'],
+            'body' => "<!-- merge-gate -->\n### 🚦 Merge Gate: 🔄 Updating the branch first\n<!-- merge-request: @{$requestedBy} ".self::SHA.' -->',
+        ]];
+        $this->github['PATCH /issues/comments/99'] = ['id' => 99];
+    }
+
+    private function givenAnAiMergeComment(string $by): void
+    {
+        $this->github['GET /issues/comments/555'] = [
+            'issue_url' => self::REPO.'/issues/6', 'body' => '/ai merge', 'user' => ['login' => $by],
+            'created_at' => now()->subMinute()->toIso8601String(),
+        ];
+    }
+
+    /** Issue #2 was opened by a designer (not in @devs or @product); $by added the label. */
+    private function givenADesignersIssueLabelledByADeveloper(string $label, string $by = 'sgoodwin10'): void
+    {
+        $this->github['GET /issues/2']['user']['login'] = 'a-designer';
+        $this->github['GET /issues/2']['labels'][] = ['name' => $label];
+        $this->github['GET /issues/2/events'] = [['event' => 'labeled', 'label' => ['name' => $label], 'actor' => ['login' => $by]]];
+        $this->github['GET /issues/6/events'] = [];
+    }
+
     public function test_a_verdict_written_by_anyone_but_the_ai_app_is_ignored(): void
     {
         $this->github['GET /pulls/6/reviews'][0]['user']['login'] = 'helpful-stranger';
@@ -179,6 +380,39 @@ class GateCommandsTest extends TestCase
 
         $this->artisan('gate:merge', ['pr' => 6])->expectsOutputToContain('GATE_GITHUB_TOKEN')->assertFailed();
         $this->artisan('gate:deploy')->expectsOutputToContain('GATE_GITHUB_TOKEN')->assertFailed();
+    }
+
+    public function test_the_deploy_gate_wants_a_developer_for_work_product_sent_to_staging(): void
+    {
+        // Release #30 carries #55, which the Merge Gate merged from an issue product (a-pm) raised.
+        $this->github += [
+            'GET /pulls/30' => [
+                'number' => 30, 'state' => 'open', 'draft' => false, 'labels' => [],
+                'base' => ['ref' => 'main'], 'head' => ['ref' => 'develop', 'sha' => self::DEVELOP_SHA],
+            ],
+            'GET /compare/main...develop' => ['commits' => [['sha' => self::DEVELOP_SHA]], 'files' => [['filename' => 'resources/js/components/site/SiteHeader.vue']]],
+            'GET /commits/'.self::DEVELOP_SHA.'/check-runs' => ['check_runs' => []],
+            'GET /commits/'.self::DEVELOP_SHA.'/pulls' => [['number' => 55, 'merged_at' => '2026-11-08T02:13:31Z', 'base' => ['ref' => 'develop']]],
+            'GET /pulls/55' => [
+                'number' => 55, 'body' => 'Closes #54', 'labels' => [['name' => 'ai:automerged']],
+                'user' => ['login' => 'fugazi-ai[bot]'], 'merged_by' => ['login' => 'fugazi-merge-gate[bot]'],
+            ],
+            'GET /pulls/55/reviews' => [],
+            'GET /issues/54' => ['user' => ['login' => 'a-pm'], 'labels' => []],
+            'GET /deployments' => [],
+            // A developer approved an earlier commit of the release, before #55 landed. That doesn't cover #55.
+            'GET /pulls/30/reviews' => [['user' => ['login' => 'sgoodwin10'], 'state' => 'APPROVED', 'commit_id' => self::SHA]],
+        ];
+
+        $this->artisan('gate:deploy', ['pr' => 30, '--dry-run' => true])
+            ->expectsOutputToContain('❌ Not reviewed by a developer yet: #55 from @a-pm. A developer must approve the release pull request.')
+            ->assertSuccessful();
+
+        $this->github['GET /pulls/30/reviews'][0]['commit_id'] = self::DEVELOP_SHA;
+
+        $this->artisan('gate:deploy', ['pr' => 30, '--dry-run' => true])
+            ->expectsOutputToContain('✅ Work reported outside @devs (#55 from @a-pm), approved on the release by @sgoodwin10.')
+            ->assertSuccessful();
     }
 
     public function test_the_deploy_gate_does_nothing_without_a_release_pull_request(): void

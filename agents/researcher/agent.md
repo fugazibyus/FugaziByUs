@@ -14,7 +14,7 @@ tools:
           - { name: web_fetch, enabled: true }
 metadata:
     role: researcher
-    budget_usd: '5'
+    budget_usd: '10'
     environment: research
 ---
 

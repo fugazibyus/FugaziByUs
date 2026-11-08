@@ -7,9 +7,13 @@ namespace App\Gates;
  * human only if every rule passes. This class only decides; it never calls GitHub.
  *
  * Three ways through the gate:
- *   1. Automatic: an ai/* PR that the reviewer approved and that meets every policy rule.
+ *   1. Automatic: an ai/* PR that the reviewer approved and that meets every policy rule,
+ *      for an issue a developer or product member reported (or opted in).
  *   2. A developer asks with `/ai merge`: the developer is the approval, so only the
  *      safety rules (CI, holds, workflows, up to date) still apply.
+ *      A product member's `/ai merge` (or `ai:automerge`) only stands in for a developer
+ *      behind the issue: every rule of path 1 still applies, so they can ship approved AI
+ *      work to staging but can't skip the review. Production is the Deploy Gate's job.
  *   3. The one-file claude-lock.json PR that the agent sync workflow opens.
  */
 class MergePolicy
@@ -107,11 +111,16 @@ class MergePolicy
 
     private function checkRequest(MergeFacts $pr, Decision $decision): void
     {
-        $decision->check(
-            $pr->requesterIsDev,
-            "Requested by @{$pr->requestedBy}, a developer (".($pr->requestedVia ?? '`/ai merge`').').',
-            "@{$pr->requestedBy} asked to merge, but only members of @devs can.",
-        );
+        $via = $pr->requestedVia ?? '`/ai merge`';
+
+        if ($pr->requesterIsDev) {
+            $decision->pass("Requested by @{$pr->requestedBy}, a developer ({$via}).");
+        } elseif ($pr->requesterIsProduct) {
+            $decision->pass("Requested by @{$pr->requestedBy} from @product ({$via}), so the usual AI rules apply.");
+            $this->checkAutomatic($pr, $decision);
+        } else {
+            $decision->fail("@{$pr->requestedBy} asked to merge, but only members of @devs or @product can.");
+        }
     }
 
     private function checkAutomatic(MergeFacts $pr, Decision $decision): void
@@ -135,10 +144,14 @@ class MergePolicy
             $decision->pass('AI merging is open to every issue (`AI_AUTOMERGE_MODE=all`).');
         } elseif ($pr->reportedByDev) {
             $decision->pass("Issue #{$pr->issue} was reported by a developer.");
+        } elseif ($pr->reportedByProduct) {
+            $decision->pass("Issue #{$pr->issue} was reported by @{$pr->reporter} from @product.");
+        } elseif ($pr->requesterIsProduct) {
+            $decision->pass("@{$pr->requestedBy} (product) asked to ship it to staging.");
         } elseif ($pr->optedInBy !== null) {
-            $decision->pass("@{$pr->optedInBy} (a developer) opted in with `ai:go` / `ai:automerge`.");
+            $decision->pass("@{$pr->optedInBy} opted in with `ai:automerge`.");
         } else {
-            $decision->fail('The issue was reported by a non-developer. A developer must add `ai:go` or `ai:automerge` first.');
+            $decision->fail('The issue was reported by someone outside @devs and @product. A developer or product member must add `ai:automerge` or comment `/ai merge` first.');
         }
 
         // The AI reviewer's verdict on this exact commit.

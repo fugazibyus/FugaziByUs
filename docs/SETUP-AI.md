@@ -88,7 +88,7 @@ Commit the updated `claude-lock.json`.
 
 - At most `AI_MAX_CONCURRENT_SESSIONS` (default 3) agents work at once. A start waits up to 20 minutes for a free slot, then gives up with a comment.
 - `make ai-stop issue=12` (or `pr=34`, or `all=1`) interrupts running agents. On GitHub, comment `/ai stop`.
-- Each run has a hard dollar cap (`budget_usd` in the agent file): triage $1, reviewer $3, debugger $5, researcher $5, release $2, developer $15.
+- Each run has a hard dollar cap (`budget_usd` in the agent file): triage $2, reviewer $6, debugger $10, researcher $10, release $4, developer $30.
 - `AI_DAILY_BUDGET_USD` (default $25) stops new runs once today's spend reaches it.
 - The workspace spend limit in the Console is the final backstop.
 
@@ -123,7 +123,7 @@ To check it works: Actions → **AI · agent** → Run workflow → agent `triag
 | An issue is opened                                                          | triage                                           | `issue-intake.yml`     |
 | The reporter replies to an issue labelled `ai:needs-info`                   | triage (again)                                   | `ai-commands.yml`      |
 | Triage finishes an issue that qualifies (below)                             | developer, or researcher                         | `ai-issues.yml`        |
-| CI passes on an `ai/*` PR                                                   | reviewer (once per commit)                       | `ai-pull-requests.yml` |
+| CI passes on an `ai/*` PR (or it's marked ready after CI passed as a draft) | reviewer (once per commit)                       | `ai-pull-requests.yml` |
 | CI fails on an `ai/*` PR                                                    | debugger (2 attempts max, then `ai:needs-human`) | `ai-pull-requests.yml` |
 | A person adds `ai:review` to any PR                                         | reviewer                                         | `ai-pull-requests.yml` |
 | Mon–Thu 08:30 Sydney, if develop is ahead of main and no release PR is open | release                                          | `ai-release.yml`       |
@@ -214,20 +214,22 @@ Until `MERGE_GATE_APP_ID` is set, both gates stay switched off and developers me
 
 It runs when CI finishes, when the reviewer posts a verdict, and when labels change, but only for `ai/*` branches and the `chore/sync-claude-lock` PR. An AI pull request merges by itself only if **every** rule passes:
 
-| Rule                              | Detail                                                                                                  |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| AI merging is on                  | `AI_AUTOMERGE_MODE` is `devs-only` (default) or `all`                                                   |
-| Someone stands behind it          | `devs-only`: the issue was reported by a `@devs` member, or a developer added `ai:go` / `ai:automerge`  |
-| CI and Guardrails are green       | On the PR's latest commit                                                                               |
-| The reviewer approved this commit | Verdict `approve`, risk low or medium, 0 blocking. Only reviews written by the Fugazi AI App count      |
-| Small enough                      | Size label ≤ `AI_MAX_AUTOMERGE_SIZE` (default M)                                                        |
-| Nothing sensitive                 | No paths from `.github/guardrails/protected-paths.txt`, no migrations, no workflow changes              |
-| Not held                          | No `ai:no-automerge`, `blocked`, `deploy:hold`, `ai:stop`, `ai:needs-human`; not a draft                |
-| Up to date                        | If `develop` moved on, the gate updates the branch first; CI and the reviewer then check the new commit |
+| Rule                              | Detail                                                                                                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| AI merging is on                  | `AI_AUTOMERGE_MODE` is `devs-only` (default) or `all`                                                                                                              |
+| Someone stands behind it          | `devs-only`: the issue was reported by a `@devs` or `@product` member, or one of them added `ai:automerge` or commented `/ai merge` (`ai:go` only starts the work) |
+| CI and Guardrails are green       | On the PR's latest commit                                                                                                                                          |
+| The reviewer approved this commit | Verdict `approve`, risk low or medium, 0 blocking. Only reviews written by the Fugazi AI App count                                                                 |
+| Small enough                      | Size label ≤ `AI_MAX_AUTOMERGE_SIZE` (default M)                                                                                                                   |
+| Nothing sensitive                 | No paths from `.github/guardrails/protected-paths.txt`, no migrations, no workflow changes                                                                         |
+| Not held                          | No `ai:no-automerge`, `blocked`, `deploy:hold`, `ai:stop`, `ai:needs-human`; not a draft                                                                           |
+| Up to date                        | If `develop` moved on, the gate updates the branch first; CI and the reviewer then check the new commit                                                            |
 
 It squash-merges, links the issue and the agent sessions in the commit message, and labels the PR and issue `ai:automerged`.
 
-**`/ai merge`** (developers only, on any PR into `develop`): the developer is the approval, so the gate only checks CI, Guardrails, hold labels, workflow changes and that the branch is up to date. The gate re-reads the comment to prove who asked.
+**`/ai merge`** (developers, on any PR into `develop`): the developer is the approval, so the gate only checks CI, Guardrails, hold labels, workflow changes and that the branch is up to date. The gate re-reads the comment to prove who asked. If the gate first has to wait (CI, the reviewer) or bring the branch up to date with `develop`, the request is kept in the gate comment and the next check still honours it. It lapses if anyone other than the gate pushes to the branch, or a check fails, so ask again after that.
+
+**Product can ship to staging, not production.** Bugs and small features reported by members of the `@product` team (`GATE_PRODUCT_TEAM`, Triage role on the repo) go all the way to staging on their own, like a developer's. They can also comment `/ai merge` or add `ai:automerge` on an AI pull request into `develop` for someone else's issue. Either way that only counts as "someone stands behind it", but every other rule above still applies, so they can't skip the reviewer, merge a human branch, or merge anything large or sensitive. Once it's on `develop`, staging deploys by itself. They can't use `/ai merge` or `/ai deploy production` on the release PR: production stays with `@devs` and the Deploy Gate.
 
 ### Deploy Gate (release PR `develop` → `main`)
 

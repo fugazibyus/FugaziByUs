@@ -75,7 +75,9 @@ jobs:
               const { data } = await github.rest.repos
                 .getCollaboratorPermissionLevel({ ...context.repo, username: issue.user.login })
                 .catch(() => ({ data: { permission: 'none' } }));
-              insider = ['admin', 'maintain', 'write', 'triage'].includes(data.permission);
+              // `permission` is the legacy level: maintain reads as "write" and triage as "read",
+              // so the Triage role is only visible in `role_name`.
+              insider = ['admin', 'write'].includes(data.permission) || data.role_name === 'triage';
             }
 
             if (!approvedBy) {

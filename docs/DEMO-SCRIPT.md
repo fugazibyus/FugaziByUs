@@ -26,7 +26,7 @@ So a request reaches staging in about **15–20 minutes**, which is why Act 2 st
 - [ ] **Budget:** today's spend is well under `AI_DAILY_BUDGET_USD` (homepage widget). A demo uses a few dollars.
 - [ ] **Staging and production healthy:** `/up` returns 200 and `/version` shows the expected commits.
 - [ ] **Slack:** the GitHub app and the Fugazi bot are in `#fugazi-features`, `#fugazi-ai-activity`, `#fugazi-reviews` and `#fugazi-deploys`. Post a test message so the channels are on screen.
-- [ ] **Designer account:** for Act 4, a GitHub account that is not a repository collaborator (or a designer who isn't in `@devs`), able to open issues.
+- [ ] **Product account:** for Act 4, a GitHub account in the `@product` team (it has the Triage role on the repository), signed in on a second browser or device.
 - [ ] **Rehearse once** with a throwaway request and keep its PR as the fallback (see [If something goes wrong](#if-something-goes-wrong)).
 
 ## The morning of
@@ -81,15 +81,19 @@ Move on; come back to it in Act 3 and at the end.
 
 **For the CEO:** open `/ai-workflow#agents` and expand one prompt. "This is the full prompt. It's a file in the repository; changing it is a pull request a developer must approve."
 
-## Act 4 · When a person has to decide (5 minutes)
+## Act 4 · Who may ship what (5 minutes)
 
-**Show:** a second issue, from the designer account.
+**Show:** a second issue, from the product account, then `/ai-workflow#guardrails`.
 
-1. The designer opens a Feature issue (GitHub → New issue → Feature), for example "Make the footer links slightly larger on mobile."
-2. Triage runs the same way. The developer agent can build it, but this time the **Merge Gate refuses** to merge on its own: "The issue was reported by a non-developer. A developer must add `ai:go` or `ai:automerge` first." The PR waits in `#fugazi-reviews`.
-3. "That's the rule we chose: requests from outside the developer team always get a human review before they merge. A developer can opt one in with a label."
+1. The product team member opens a Feature issue (GitHub → New issue → Feature), for example "Make the footer links slightly larger on mobile." Size S.
+2. Triage runs the same way, and the developer agent starts on its own, just as it did for the developer's request in Act 2. "Product can ship small and medium AI work to staging without waiting for a developer."
+3. On `/ai-workflow#guardrails`, point at what still applies: "The Merge Gate checks the same rules as for a developer's request: green CI, the reviewer's approval, low or medium risk, size M at most, no migrations, no protected files. If any fails, the PR waits for a person."
+4. Who decides what:
+    - **Someone outside `@devs` and `@product`:** the agents still build it, but the Merge Gate refuses to merge until a developer or product member adds `ai:automerge` or comments `/ai merge`. The PR waits in `#fugazi-reviews`.
+    - **Size L:** waits for a developer to add `ai:go` before any agent starts.
+    - **Production:** product can't ship it. Only the Deploy Gate or a developer merges the release (Act 5).
 
-If there isn't time to wait for the PR, show the refusal on the rehearsal PR instead.
+Come back to this issue in Act 7: it should reach staging about 15–20 minutes after it was opened.
 
 ## Act 5 · Shipping to production (5 minutes)
 
@@ -112,7 +116,7 @@ If there isn't time to wait for the PR, show the refusal on the rehearsal PR ins
 
 **Show:** the staging homepage, then `/ai-workflow` on staging.
 
-- By now the Slack request from Act 2 should be merged and live on staging (`#fugazi-deploys` or the PR's timeline shows it). Scroll down the page and click the new button.
+- By now the Slack request from Act 2 should be merged and live on staging (`#fugazi-deploys` or the PR's timeline shows it). Scroll down the page and click the new button. If the product request from Act 4 has landed too, show it on a phone-width window.
 - "About twenty minutes from a Slack message to a reviewed, tested change on staging, with nobody typing code."
 - For questions, `/ai-workflow#faq` has answers by role. Common ones:
     - **Cost:** about $29 a month of hosting plus AI usage; this demo cost a few dollars (show the widget).

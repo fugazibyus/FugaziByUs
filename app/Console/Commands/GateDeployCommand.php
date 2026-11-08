@@ -34,6 +34,13 @@ class GateDeployCommand extends Command
                 return self::SUCCESS;
             }
 
+            // Label events still fire after the release merges. Leave its final gate comment alone.
+            if (($github->pullRequest($number)['state'] ?? null) !== 'open') {
+                $this->components->info("#{$number} is closed; the Deploy Gate has nothing to do.");
+
+                return self::SUCCESS;
+            }
+
             $collector = new GateFactsCollector($github);
             $requestedBy = $this->option('requested-by') ?: null;
             $via = 'run by hand from the Actions tab';

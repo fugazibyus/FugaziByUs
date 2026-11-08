@@ -27,6 +27,15 @@ class GateMergeCommand extends Command
         $number = (int) $this->argument('pr');
         try {
             $github = GitHub::fromConfig();
+
+            // Closing or merging still fires label events (the gate's own `ai:automerged`,
+            // for one). Leave the PR and its final gate comment alone.
+            if (($github->pullRequest($number)['state'] ?? null) !== 'open') {
+                $this->components->info("#{$number} is closed; the Merge Gate has nothing to do.");
+
+                return self::SUCCESS;
+            }
+
             $collector = new GateFactsCollector($github);
             $requestedBy = $this->option('comment')
                 ? $collector->requesterFromComment($number, (int) $this->option('comment'), 'merge')
@@ -69,7 +78,12 @@ class GateMergeCommand extends Command
             $this->components->error($note);
         }
 
-        $changed = $github->upsertComment($number, GateReport::MERGE_MARKER, GateReport::render('merge', $decision, $pr->headSha, (string) $this->option('trigger'), $note));
+        // A request that has to wait (CI, the reviewer) or update the branch first is kept in the
+        // gate comment, so the run that follows still knows someone asked.
+        $keep = $pr->requestedBy !== null && $note === null && in_array($decision->action(), [Decision::WAIT, Decision::UPDATE_BRANCH], true);
+        $keptRequest = $keep ? ['login' => $pr->requestedBy, 'sha' => $pr->headSha] : null;
+
+        $changed = $github->upsertComment($number, GateReport::MERGE_MARKER, GateReport::render('merge', $decision, $pr->headSha, (string) $this->option('trigger'), $note, $keptRequest));
         $url = 'https://github.com/'.config('gates.repository')."/pull/{$number}";
 
         GateReport::writeGithubOutput([
