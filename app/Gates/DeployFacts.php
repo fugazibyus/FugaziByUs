@@ -12,8 +12,8 @@ final readonly class DeployFacts
     /**
      * @param  list<string>  $labels
      * @param  array<string, string>  $checks  check name => success | failure | pending | missing
-     * @param  list<array{number: int, merged_by: string, labels: list<string>}>  $releasedPrs  PRs merged into develop since the last release
-     * @param  list<string>  $devApprovals  developers who approved the release PR
+     * @param  list<array{number: int, merged_by: string, labels: list<string>, reporter: ?string, reported_by_dev: bool, dev_reviewed: bool}>  $releasedPrs  PRs merged into develop since the last release. `reporter` raised the linked issue (or opened the PR when there's none); `dev_reviewed` means a developer approved or merged it.
+     * @param  list<string>  $devApprovals  developers who approved the release PR's current head commit
      * @param  array{created_at: CarbonImmutable, state: string}|null  $lastDeploy  latest production deployment
      * @param  string|null  $requestedVia  how the developer asked, e.g. "`/ai deploy production`" or "a manual run"
      */

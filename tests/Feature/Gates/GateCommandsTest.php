@@ -382,6 +382,39 @@ class GateCommandsTest extends TestCase
         $this->artisan('gate:deploy')->expectsOutputToContain('GATE_GITHUB_TOKEN')->assertFailed();
     }
 
+    public function test_the_deploy_gate_wants_a_developer_for_work_product_sent_to_staging(): void
+    {
+        // Release #30 carries #55, which the Merge Gate merged from an issue product (a-pm) raised.
+        $this->github += [
+            'GET /pulls/30' => [
+                'number' => 30, 'state' => 'open', 'draft' => false, 'labels' => [],
+                'base' => ['ref' => 'main'], 'head' => ['ref' => 'develop', 'sha' => self::DEVELOP_SHA],
+            ],
+            'GET /compare/main...develop' => ['commits' => [['sha' => self::DEVELOP_SHA]], 'files' => [['filename' => 'resources/js/components/site/SiteHeader.vue']]],
+            'GET /commits/'.self::DEVELOP_SHA.'/check-runs' => ['check_runs' => []],
+            'GET /commits/'.self::DEVELOP_SHA.'/pulls' => [['number' => 55, 'merged_at' => '2026-11-08T02:13:31Z', 'base' => ['ref' => 'develop']]],
+            'GET /pulls/55' => [
+                'number' => 55, 'body' => 'Closes #54', 'labels' => [['name' => 'ai:automerged']],
+                'user' => ['login' => 'fugazi-ai[bot]'], 'merged_by' => ['login' => 'fugazi-merge-gate[bot]'],
+            ],
+            'GET /pulls/55/reviews' => [],
+            'GET /issues/54' => ['user' => ['login' => 'a-pm'], 'labels' => []],
+            'GET /deployments' => [],
+            // A developer approved an earlier commit of the release, before #55 landed. That doesn't cover #55.
+            'GET /pulls/30/reviews' => [['user' => ['login' => 'sgoodwin10'], 'state' => 'APPROVED', 'commit_id' => self::SHA]],
+        ];
+
+        $this->artisan('gate:deploy', ['pr' => 30, '--dry-run' => true])
+            ->expectsOutputToContain('❌ Not reviewed by a developer yet: #55 from @a-pm. A developer must approve the release pull request.')
+            ->assertSuccessful();
+
+        $this->github['GET /pulls/30/reviews'][0]['commit_id'] = self::DEVELOP_SHA;
+
+        $this->artisan('gate:deploy', ['pr' => 30, '--dry-run' => true])
+            ->expectsOutputToContain('✅ Work reported outside @devs (#55 from @a-pm), approved on the release by @sgoodwin10.')
+            ->assertSuccessful();
+    }
+
     public function test_the_deploy_gate_does_nothing_without_a_release_pull_request(): void
     {
         $this->github['GET /pulls'] = [];

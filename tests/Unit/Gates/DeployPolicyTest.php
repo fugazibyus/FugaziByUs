@@ -38,11 +38,29 @@ class DeployPolicyTest extends TestCase
             'stagingSha' => self::SHA,
             'stagingDeployedAt' => $now->subHours(2),
             'releasedPrs' => [
-                ['number' => 6, 'merged_by' => 'fugazi-merge-gate[bot]', 'labels' => ['ai:automerged']],
-                ['number' => 7, 'merged_by' => 'sgoodwin10', 'labels' => []],
+                $this->releasedPr(6, merged_by: 'fugazi-merge-gate[bot]', labels: ['ai:automerged']),
+                $this->releasedPr(7, merged_by: 'sgoodwin10', dev_reviewed: true),
             ],
             'lastDeploy' => ['created_at' => $now->subDay(), 'state' => 'success'],
         ], $changes));
+    }
+
+    /**
+     * A pull request merged into develop since the last release. By default a developer
+     * reported its issue, so nobody else needs to look at it before production.
+     *
+     * @return array{number: int, merged_by: string, labels: list<string>, reporter: ?string, reported_by_dev: bool, dev_reviewed: bool}
+     */
+    private function releasedPr(int $number, mixed ...$changes): array
+    {
+        return array_merge([
+            'number' => $number,
+            'merged_by' => 'fugazi-merge-gate[bot]',
+            'labels' => [],
+            'reporter' => 'sgoodwin10',
+            'reported_by_dev' => true,
+            'dev_reviewed' => false,
+        ], $changes);
     }
 
     private function decide(DeployFacts $release, string $mode = 'business-hours'): Decision
@@ -94,8 +112,8 @@ class DeployPolicyTest extends TestCase
 
     public function test_every_released_pull_request_was_checked_and_none_is_on_hold(): void
     {
-        $this->assertAction(Decision::REFUSE, $this->decide($this->release(releasedPrs: [['number' => 8, 'merged_by' => 'dependabot[bot]', 'labels' => []]])), '#8');
-        $this->assertAction(Decision::REFUSE, $this->decide($this->release(releasedPrs: [['number' => 9, 'merged_by' => 'sgoodwin10', 'labels' => ['deploy:hold']]])), 'On hold: #9');
+        $this->assertAction(Decision::REFUSE, $this->decide($this->release(releasedPrs: [$this->releasedPr(8, merged_by: 'dependabot[bot]')])), '#8');
+        $this->assertAction(Decision::REFUSE, $this->decide($this->release(releasedPrs: [$this->releasedPr(9, merged_by: 'sgoodwin10', labels: ['deploy:hold'])])), 'On hold: #9');
         $this->assertAction(Decision::REFUSE, $this->decide($this->release(labels: ['deploy:hold'])), '`deploy:hold`');
     }
 
@@ -103,6 +121,16 @@ class DeployPolicyTest extends TestCase
     {
         $this->assertAction(Decision::REFUSE, $this->decide($this->release(touchesMigrations: true)), 'database migrations');
         $this->assertAction(Decision::MERGE, $this->decide($this->release(touchesMigrations: true, devApprovals: ['sgoodwin10'])));
+    }
+
+    public function test_work_reported_outside_devs_needs_a_developer_before_production(): void
+    {
+        // Product's issue went to staging through the Merge Gate; no developer has looked at it.
+        $fromProduct = $this->releasedPr(55, reporter: 'a-pm', reported_by_dev: false);
+
+        $this->assertAction(Decision::REFUSE, $this->decide($this->release(releasedPrs: [$fromProduct])), '#55 from @a-pm');
+        $this->assertAction(Decision::MERGE, $this->decide($this->release(releasedPrs: [$fromProduct], devApprovals: ['sgoodwin10'])));
+        $this->assertAction(Decision::MERGE, $this->decide($this->release(releasedPrs: [[...$fromProduct, 'dev_reviewed' => true]])));
     }
 
     public function test_recent_or_failed_production_deploys_hold_the_release(): void
