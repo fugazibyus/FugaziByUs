@@ -72,7 +72,7 @@ class AiStartCommandTest extends TestCase
         $this->assertSame('agent_developer', $params['agent']);
         $this->assertSame('env_sandbox', $params['environmentID']);
         $this->assertSame(['vlt_github'], $params['vaultIDs']);
-        $this->assertSame(15.0, $params['budgetUsd']);
+        $this->assertSame(30.0, $params['budgetUsd']);
         $this->assertSame('Developer · issue #12', $params['title']);
         $this->assertSame(['app' => 'fugazibyus', 'agent' => 'developer', 'issue' => '12', 'trigger' => 'actions', 'actor' => 'sgoodwin10'], $params['metadata']);
         $this->assertSame('develop', $params['repositories'][0]['branch']);
