@@ -14,7 +14,7 @@ tools:
           - { name: web_fetch, enabled: false }
 metadata:
     role: debugger
-    budget_usd: '5'
+    budget_usd: '10'
     environment: sandbox
 ---
 
