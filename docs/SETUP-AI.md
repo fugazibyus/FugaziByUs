@@ -123,7 +123,7 @@ To check it works: Actions → **AI · agent** → Run workflow → agent `triag
 | An issue is opened                                                          | triage                                           | `issue-intake.yml`     |
 | The reporter replies to an issue labelled `ai:needs-info`                   | triage (again)                                   | `ai-commands.yml`      |
 | Triage finishes an issue that qualifies (below)                             | developer, or researcher                         | `ai-issues.yml`        |
-| CI passes on an `ai/*` PR                                                   | reviewer (once per commit)                       | `ai-pull-requests.yml` |
+| CI passes on an `ai/*` PR (or it's marked ready after CI passed as a draft) | reviewer (once per commit)                       | `ai-pull-requests.yml` |
 | CI fails on an `ai/*` PR                                                    | debugger (2 attempts max, then `ai:needs-human`) | `ai-pull-requests.yml` |
 | A person adds `ai:review` to any PR                                         | reviewer                                         | `ai-pull-requests.yml` |
 | Mon–Thu 08:30 Sydney, if develop is ahead of main and no release PR is open | release                                          | `ai-release.yml`       |
