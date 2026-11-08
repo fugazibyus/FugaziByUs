@@ -15,7 +15,7 @@ tools:
           - { name: web_fetch, enabled: false }
 metadata:
     role: triage
-    budget_usd: '1'
+    budget_usd: '2'
     environment: sandbox
 ---
 

@@ -14,7 +14,7 @@ tools:
           - { name: web_fetch, enabled: false }
 metadata:
     role: reviewer
-    budget_usd: '3'
+    budget_usd: '6'
     environment: sandbox
 ---
 

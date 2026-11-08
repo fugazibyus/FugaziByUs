@@ -56,12 +56,12 @@ Each agent is a Markdown file in [`agents/`](agents/): the frontmatter holds the
 
 | Agent          | Starts when                                     | Does                                                                       | Budget / run |
 | -------------- | ----------------------------------------------- | -------------------------------------------------------------------------- | ------------ |
-| **triage**     | An issue is opened                              | Labels type, priority and size, writes acceptance criteria, asks questions | $1           |
-| **researcher** | A `type:research` issue qualifies               | Researches the web, posts sourced findings                                 | $5           |
-| **developer**  | A `flow:ai` issue qualifies, or `/ai develop`   | Branches, implements, writes tests, opens a PR                             | $15          |
-| **debugger**   | CI fails on an `ai/*` PR, or `/ai fix`          | Reads the logs and fixes the branch (2 attempts, then `ai:needs-human`)    | $5           |
-| **reviewer**   | CI passes on an `ai/*` PR, or `ai:review` label | Reviews and records a verdict (approve / request changes + risk)           | $3           |
-| **release**    | Mon–Thu 08:30 Sydney, or `/ai release`          | Opens the `develop → main` release PR with notes, checks staging and prod  | $2           |
+| **triage**     | An issue is opened                              | Labels type, priority and size, writes acceptance criteria, asks questions | $2           |
+| **researcher** | A `type:research` issue qualifies               | Researches the web, posts sourced findings                                 | $10          |
+| **developer**  | A `flow:ai` issue qualifies, or `/ai develop`   | Branches, implements, writes tests, opens a PR                             | $30          |
+| **debugger**   | CI fails on an `ai/*` PR, or `/ai fix`          | Reads the logs and fixes the branch (2 attempts, then `ai:needs-human`)    | $10          |
+| **reviewer**   | CI passes on an `ai/*` PR, or `ai:review` label | Reviews and records a verdict (approve / request changes + risk)           | $6           |
+| **release**    | Mon–Thu 08:30 Sydney, or `/ai release`          | Opens the `develop → main` release PR with notes, checks staging and prod  | $4           |
 
 ---
 

@@ -88,7 +88,7 @@ Commit the updated `claude-lock.json`.
 
 - At most `AI_MAX_CONCURRENT_SESSIONS` (default 3) agents work at once. A start waits up to 20 minutes for a free slot, then gives up with a comment.
 - `make ai-stop issue=12` (or `pr=34`, or `all=1`) interrupts running agents. On GitHub, comment `/ai stop`.
-- Each run has a hard dollar cap (`budget_usd` in the agent file): triage $1, reviewer $3, debugger $5, researcher $5, release $2, developer $15.
+- Each run has a hard dollar cap (`budget_usd` in the agent file): triage $2, reviewer $6, debugger $10, researcher $10, release $4, developer $30.
 - `AI_DAILY_BUDGET_USD` (default $25) stops new runs once today's spend reaches it.
 - The workspace spend limit in the Console is the final backstop.
 
