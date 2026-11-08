@@ -95,6 +95,7 @@ test('the contact form sends a message', async ({ page }) => {
     await page.getByLabel('Email address').fill(unique());
     await page.getByLabel('Subject').fill('Smoke test');
     await page.getByLabel('Message').fill('Automated smoke test from CI.');
+    await expect(page.getByTestId('contact-submit')).toHaveText('Send');
     await page.getByTestId('contact-submit').click();
     await expect(page.getByText('Your message has been sent')).toBeVisible();
 });
