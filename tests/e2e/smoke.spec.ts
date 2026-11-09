@@ -90,7 +90,7 @@ test('the header menu links to the contact page as "Contact"', async ({
     }
 });
 
-test('the header "Register" button opens the register modal', async ({
+test('the header "Sign up" button opens the register modal', async ({
     page,
     isMobile,
 }) => {
@@ -104,9 +104,11 @@ test('the header "Register" button opens the register modal', async ({
     await expect(
         menu.getByRole('button', { name: 'Log in', exact: true }),
     ).toBeVisible();
-    await expect(menu.getByText('Sign up')).toHaveCount(0);
+    await expect(
+        menu.getByRole('button', { name: 'Register', exact: true }),
+    ).toHaveCount(0);
 
-    await menu.getByRole('button', { name: 'Register', exact: true }).click();
+    await menu.getByRole('button', { name: 'Sign up', exact: true }).click();
     const modal = page.getByTestId('auth-modal');
     await expect(modal).toBeVisible();
     await expect(
