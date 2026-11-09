@@ -299,7 +299,7 @@ Slack and GitHub talk to each other directly; the website isn't in the middle (s
 
 **Design:** clean and airy, Inter font, neutral slate palette with one violet accent, rounded-2xl cards, subtle gradients on the hero, light and dark mode. Design tokens live in Tailwind 4 `@theme` so the designer can see and change them in one place. Components use shadcn-vue (it ships with the Laravel Vue starter kit).
 
-**Top menu:** Logo · Home · AI Workflow · Contact · (guest: Log in / Register buttons → modals) · (auth: avatar dropdown → My account, Log out).
+**Top menu:** Logo · Home · AI Workflow · Contact · (guest: Log in / Sign up buttons → modals) · (auth: avatar dropdown → My account, Log out).
 
 | Page                           | Contents                                                                                                                                                                                                                                                                                  |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
