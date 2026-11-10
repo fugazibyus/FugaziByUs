@@ -14,6 +14,7 @@ import {
 } from '@lucide/vue';
 import { nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
 import AgentCard from '@/components/ai-workflow/AgentCard.vue';
+import BackToTop from '@/components/ai-workflow/BackToTop.vue';
 import {
     branches,
     commandGroups,
@@ -50,6 +51,7 @@ const sections = [
 type SectionId = (typeof sections)[number]['id'];
 
 const active = ref<SectionId>('overview');
+const pageTitle = useTemplateRef<HTMLElement>('pageTitle');
 const heading = useTemplateRef<HTMLElement>('heading');
 const nav = useTemplateRef<HTMLElement>('nav');
 
@@ -108,7 +110,13 @@ const activeTitle = (id: SectionId) =>
 
     <section class="bg-hero-glow">
         <div class="mx-auto max-w-6xl px-4 pt-16 pb-10 sm:px-6">
-            <h1 class="text-4xl font-bold tracking-tight">The AI workflow</h1>
+            <h1
+                ref="pageTitle"
+                tabindex="-1"
+                class="text-4xl font-bold tracking-tight focus:outline-none"
+            >
+                The AI workflow
+            </h1>
             <p class="mt-4 max-w-2xl text-lg text-muted-foreground">
                 How FugaziByUs gets built: who does what, the rules that keep it
                 safe, and how to work with the agents, whatever your role.
@@ -372,4 +380,6 @@ const activeTitle = (id: SectionId) =>
             </template>
         </article>
     </div>
+
+    <BackToTop :focus-target="pageTitle" />
 </template>

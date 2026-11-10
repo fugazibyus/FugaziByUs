@@ -70,7 +70,7 @@ const password = ref('');
             data-test="register-user-button"
         >
             <Spinner v-if="processing" />
-            Create account
+            Create your account
         </Button>
 
         <p class="text-center text-sm text-muted-foreground">
