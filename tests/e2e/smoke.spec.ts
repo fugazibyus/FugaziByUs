@@ -22,7 +22,10 @@ test('a visitor can register, set their name and log out', async ({ page }) => {
     await modal.getByLabel('Email address').fill(unique());
     await modal.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await modal.getByLabel('Confirm password').fill(PASSWORD);
-    await modal.getByRole('button', { name: 'Create account' }).click();
+    await expect(modal.getByTestId('register-user-button')).toHaveText(
+        'Create your account',
+    );
+    await modal.getByRole('button', { name: 'Create your account' }).click();
 
     await expect(page).toHaveURL(/\/account$/);
     await expect(page.getByText('Your account is ready')).toBeVisible();
