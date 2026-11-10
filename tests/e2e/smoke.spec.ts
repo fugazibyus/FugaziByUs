@@ -187,3 +187,54 @@ test('contact FAQ answers open and close by mouse and keyboard', async ({
     await page.keyboard.press('Space');
     await expect(answer).toBeHidden();
 });
+
+test('the AI workflow "Back to top" button appears after scrolling and works by keyboard', async ({
+    page,
+}) => {
+    await page.goto('/ai-workflow#commands');
+    await expect(page.getByRole('heading', { level: 2 })).toHaveText(
+        'Commands',
+    );
+    const button = page.getByTestId('back-to-top');
+    await expect(button).toBeHidden();
+
+    await page.evaluate(() =>
+        window.scrollTo(0, document.documentElement.scrollHeight),
+    );
+    await expect(button).toBeVisible();
+    await expect(button).toHaveAccessibleName('Back to top');
+
+    // It never sits on top of the section menu.
+    const menu = await page
+        .getByRole('navigation', { name: 'Handbook sections' })
+        .boundingBox();
+    const box = await button.boundingBox();
+    expect(
+        box!.y >= menu!.y + menu!.height || box!.x >= menu!.x + menu!.width,
+    ).toBe(true);
+    // At the end of the page it rests above the footer instead of covering it.
+    const footer = await page.getByRole('contentinfo').boundingBox();
+    expect(box!.y + box!.height).toBeLessThanOrEqual(footer!.y);
+
+    await button.focus();
+    await page.keyboard.press('Enter');
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    await expect(page.getByRole('heading', { level: 1 })).toBeFocused();
+    await expect(button).toBeHidden();
+});
+
+test('the AI workflow "Back to top" button jumps straight up when motion is reduced', async ({
+    page,
+}) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/ai-workflow#commands');
+    await expect(page.getByRole('heading', { level: 2 })).toHaveText(
+        'Commands',
+    );
+    await page.evaluate(() =>
+        window.scrollTo(0, document.documentElement.scrollHeight),
+    );
+
+    await page.getByTestId('back-to-top').click();
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+});
