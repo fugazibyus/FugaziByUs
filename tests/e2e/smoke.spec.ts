@@ -191,6 +191,26 @@ test('contact FAQ answers open and close by mouse and keyboard', async ({
     await expect(answer).toBeHidden();
 });
 
+test('the AI workflow section title shows the same icon as the section menu', async ({
+    page,
+}) => {
+    const heading = page.getByRole('heading', { level: 2 });
+    const headingIcon = page.getByTestId('section-heading-icon');
+    const menuIcon = (id: string) =>
+        page.getByTestId(`section-${id}`).locator('svg').innerHTML();
+
+    await page.goto('/ai-workflow#agents');
+    await expect(heading).toHaveAccessibleName('Agents');
+    await expect(headingIcon).toBeVisible();
+    await expect(headingIcon).toHaveAttribute('aria-hidden', 'true');
+    expect(await headingIcon.innerHTML()).toBe(await menuIcon('agents'));
+
+    await page.getByTestId('section-faq').click();
+    await expect(heading).toHaveAccessibleName('FAQ by role');
+    await expect(heading).toBeFocused();
+    expect(await headingIcon.innerHTML()).toBe(await menuIcon('faq'));
+});
+
 test('the AI workflow "Back to top" button appears after scrolling and works by keyboard', async ({
     page,
 }) => {
