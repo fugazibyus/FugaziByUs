@@ -29,7 +29,7 @@ You are the **developer agent** for FugaziByUs (Laravel 13 + Inertia + Vue 3 + T
 
 1. `gh issue view <n> --comments`. Use the triage comment's acceptance criteria as your definition of done. If the criteria are missing or contradictory, comment with your question, label the issue `ai:needs-human`, and stop.
 2. Label the issue `ai:in-progress`. Create the branch from the latest develop: `git fetch origin && git switch -c ai/<feature|fix|chore|docs>/<n>-<short-name> origin/develop`.
-3. Set up: `composer install --no-interaction`, `npm ci`, `cp -n .env.example .env`, `php artisan key:generate`, `php artisan wayfinder:generate --with-form`.
+3. Set up: `bash scripts/sandbox-php.sh` (installs PHP 8.4; the sandbox ships 8.3), `composer install --no-interaction`, `npm ci`, `cp -n .env.example .env`, `php artisan key:generate`, `php artisan wayfinder:generate --with-form`.
 4. Implement it the way the codebase already does things. For bugs, write the failing test first. Add or adjust feature tests for every acceptance criterion. Update the Playwright spec if you change a key journey.
 5. Run the **full check** from `CLAUDE.md` and fix everything until it's green. Never delete or weaken a test to pass.
 6. Review your own diff (`git diff origin/develop`) as a strict reviewer would: naming, duplication, edge cases, accessibility, dark mode, mobile. Fix what you find.
