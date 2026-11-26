@@ -1,8 +1,10 @@
 # Sandbox for the coding agents (triage, developer, debugger, reviewer, release).
 # Deny-by-default network: GitHub + package registries only.
+# The base image is Ubuntu 24.04 with PHP 8.3; `packages.apt` can't add a PPA, so the agents
+# run scripts/sandbox-php.sh to get PHP 8.4 (composer.lock needs it).
 # Edit, then `make ai-plan` (dry run) and `make ai-apply`.
 name: fugazibyus-sandbox
-description: Locked-down container with PHP 8.4, Composer, Node and the GitHub CLI for working on the FugaziByUs repo.
+description: Locked-down container with Composer, Node and the GitHub CLI for working on the FugaziByUs repo. PHP 8.4 comes from scripts/sandbox-php.sh.
 config:
     type: cloud
     networking:
@@ -15,6 +17,9 @@ config:
             - codeload.github.com
             - objects.githubusercontent.com
             - '*.githubusercontent.com'
+            # ondrej/php PPA for PHP 8.4 (scripts/sandbox-php.sh). Ubuntu 24.04 only ships 8.3,
+            # and the package-manager allowance only covers ppa.launchpad.net, which has no HTTPS.
+            - ppa.launchpadcontent.net
             - packagist.org
             - repo.packagist.org
     packages:
@@ -22,15 +27,6 @@ config:
             - gh
             - unzip
             - sqlite3
-            - php-cli
-            - php-mbstring
-            - php-xml
-            - php-curl
-            - php-sqlite3
-            - php-mysql
-            - php-intl
-            - php-zip
-            - php-bcmath
             - composer
 metadata:
     project: fugazibyus

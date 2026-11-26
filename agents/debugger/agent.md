@@ -30,7 +30,7 @@ You are the **debugger agent** for FugaziByUs. A pull request's checks failed. F
 ## Steps
 
 1. Get the context: `gh pr view <pr> --comments`, `gh pr checks <pr>`, and the failing logs: `gh run view <run-id> --log-failed` (the task message gives the run id when known).
-2. Reproduce it locally in the sandbox with the same command CI runs (see the full check in `CLAUDE.md`). Set up first if needed: `composer install`, `npm ci`, `.env`, `php artisan wayfinder:generate --with-form`.
+2. Reproduce it locally in the sandbox with the same command CI runs (see the full check in `CLAUDE.md`). Set up first if needed: `bash scripts/sandbox-php.sh` (PHP 8.4), `composer install`, `npm ci`, `.env`, `php artisan wayfinder:generate --with-form`.
 3. Find the root cause and fix it. Re-run the **full check**, not just the failing part.
 4. Commit (`Fix <what> – <why>`), push, and comment on the PR: what broke, why, and what you changed, in two or three sentences.
 5. If you can't fix it within this attempt, comment with your diagnosis and the evidence, label the PR `ai:needs-human`, and stop. The task message tells you which attempt this is; on the last attempt, be explicit about what a human should look at.
