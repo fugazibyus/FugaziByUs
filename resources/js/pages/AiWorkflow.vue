@@ -12,7 +12,14 @@ import {
     Terminal,
     Workflow,
 } from '@lucide/vue';
-import { nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
+import {
+    computed,
+    nextTick,
+    onBeforeUnmount,
+    onMounted,
+    ref,
+    useTemplateRef,
+} from 'vue';
 import AgentCard from '@/components/ai-workflow/AgentCard.vue';
 import BackToTop from '@/components/ai-workflow/BackToTop.vue';
 import {
@@ -101,8 +108,10 @@ async function show(id: SectionId): Promise<void> {
     }
 }
 
-const activeTitle = (id: SectionId) =>
-    sections.find((section) => section.id === id)?.title;
+const activeSection = computed(
+    () =>
+        sections.find((section) => section.id === active.value) ?? sections[0],
+);
 </script>
 
 <template>
@@ -160,9 +169,15 @@ const activeTitle = (id: SectionId) =>
             <h2
                 ref="heading"
                 tabindex="-1"
-                class="scroll-mt-24 text-2xl font-bold tracking-tight focus:outline-none"
+                class="flex scroll-mt-24 items-center gap-3 text-2xl font-bold tracking-tight focus:outline-none"
             >
-                {{ activeTitle(active) }}
+                <component
+                    :is="activeSection.icon"
+                    class="size-6 shrink-0 text-primary"
+                    aria-hidden="true"
+                    data-test="section-heading-icon"
+                />
+                {{ activeSection.title }}
             </h2>
 
             <template v-if="active === 'overview'">
