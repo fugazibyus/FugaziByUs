@@ -30,7 +30,7 @@ Locally everything runs in Docker through `make`. In an agent sandbox there's no
 
 | Task                | Local (Docker)   | Agent sandbox                                                                                                                        |
 | ------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Install             | `make setup`     | `composer install --no-interaction && npm ci`                                                                                        |
+| Install             | `make setup`     | `bash scripts/sandbox-php.sh && composer install --no-interaction && npm ci`                                                         |
 | Route types         | automatic (Vite) | `php artisan wayfinder:generate --with-form`                                                                                         |
 | PHP tests           | `make test`      | `cp -n .env.example .env; php artisan key:generate; php artisan test --compact`                                                      |
 | Everything CI runs  | `make check`     | `composer lint:check && composer types:check && npm run check && npm run types:check && php artisan test --compact && npm run build` |
